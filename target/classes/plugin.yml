@@ -1,0 +1,57 @@
+name: SupremeChat-Fork
+version: '1.15-dev-1.0'
+main: net.devscape.project.supremechat.SupremeChat
+api-version: 1.13
+authors: [DevScape, TremeQu]
+softdepend: [DiscordSRV, Vault, PlaceholderAPI, floodgate]
+
+commands:
+  supremechat:
+    aliases: [schat, sc]
+  channel:
+    aliases: [c, channels]
+  emojis:
+    description: 'List all available emojis.'
+    aliases: [emoji]
+    permission: 'supremechat.emojis'
+  msg:
+    description: 'Send a private message to another player.'
+    usage: '/msg <player> <message>'
+    permission: 'supremechat.msg'
+  tell:
+    description: 'Send a private message to another player.'
+    usage: '/tell <player> <message>'
+    permission: 'supremechat.msg'
+  whisper:
+    description: 'Send a private message to another player.'
+    aliases: [w]
+    usage: '/whisper <player> <message>'
+    permission: 'supremechat.msg'
+  reply:
+    description: 'Reply to the last player who messaged you.'
+    usage: '/reply <message>'
+    permission: 'supremechat.reply'
+  r:
+    description: 'Reply to the last player who messaged you.'
+    usage: '/r <message>'
+    permission: 'supremechat.reply'
+
+permissions:
+  supremechat.bypass.chatcooldown:
+    description: 'Bypass chat cooldown restrictions'
+    default: op
+  supremechat.bypass.commandcooldown:
+    description: 'Bypass command cooldown restrictions'
+    default: op
+  supremechat.bypass.filter:
+    description: 'Bypass chat filters (banned words, caps, repeat messages)'
+    default: op
+  supremechat.emojis:
+    description: 'Access to emojis command'
+    default: true
+  supremechat.msg:
+    description: 'Send private messages to other players'
+    default: true
+  supremechat.reply:
+    description: 'Reply to private messages'
+    default: true

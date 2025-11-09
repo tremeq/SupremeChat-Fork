@@ -1,0 +1,115 @@
+# ============================================
+# Resource Pack Configuration for ChatHead
+# ============================================
+#
+# This example shows how to configure your server.properties
+# to automatically distribute the ChatHead resource pack to players.
+#
+# IMPORTANT: You must host the chathead-resourcepack.zip file
+# somewhere accessible via HTTPS before using this configuration.
+#
+# See RESOURCEPACK_SETUP_GUIDE.md for detailed instructions.
+
+# ---------------------------------------------
+# Resource Pack URL
+# ---------------------------------------------
+# Direct download URL to the chathead-resourcepack.zip file
+# MUST be HTTPS (not HTTP)
+#
+# Examples:
+# - GitHub Releases: https://github.com/USERNAME/REPO/releases/download/v1.0/chathead-resourcepack.zip
+# - Own Server: https://yourserver.com/downloads/chathead-resourcepack.zip
+# - Dropbox: https://www.dropbox.com/s/abc123/chathead-resourcepack.zip?dl=1
+#
+# Replace this with your actual hosted URL:
+resource-pack=https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v1.0/chathead-resourcepack.zip
+
+# ---------------------------------------------
+# Resource Pack SHA1 Hash
+# ---------------------------------------------
+# This verifies the integrity of the downloaded pack
+# Generated hash for chathead-resourcepack.zip:
+resource-pack-sha1=401b402cefdb05776cb1bb06db0afc0ed566e20d
+
+# To regenerate if you modify the pack:
+# Linux/Mac: sha1sum chathead-resourcepack.zip
+# Windows PowerShell: Get-FileHash chathead-resourcepack.zip -Algorithm SHA1
+
+# ---------------------------------------------
+# Resource Pack Prompt
+# ---------------------------------------------
+# Custom message shown to players when prompted to download
+# Supports Minecraft color codes (&) and \n for newlines
+resource-pack-prompt=§6§lSupremeChat §r§aChatHead Pack\n§7Required for displaying player heads in chat\n§e§lHighly Recommended!
+
+# Alternative prompts:
+# resource-pack-prompt=§aDownload the ChatHead pack to see player heads!
+# resource-pack-prompt=§6Server Resource Pack\n§7Enables enhanced chat features
+# resource-pack-prompt=§c§lREQUIRED§r §7for full chat experience
+
+# ---------------------------------------------
+# Require Resource Pack
+# ---------------------------------------------
+# If true, players who decline the pack will be kicked
+# If false, players can play without it (but won't see heads)
+#
+# Recommended: false (let players choose)
+require-resource-pack=false
+
+# Set to true if you want to enforce the pack:
+# require-resource-pack=true
+
+# ============================================
+# How to Apply These Settings
+# ============================================
+#
+# 1. Copy the 4 lines above (resource-pack, resource-pack-sha1,
+#    resource-pack-prompt, require-resource-pack) to your actual
+#    server.properties file
+#
+# 2. Replace the resource-pack URL with your hosted URL
+#
+# 3. Save the file
+#
+# 4. Stop and restart your server
+#
+# 5. Players will be prompted to download the pack when joining
+#
+# ============================================
+# Troubleshooting
+# ============================================
+#
+# Players see "Failed to download resource pack":
+#   - Verify the URL is accessible (open in browser)
+#   - Ensure URL uses HTTPS, not HTTP
+#   - Check firewall settings
+#
+# Players see "SHA1 verification failed":
+#   - Regenerate the hash from the exact file you're hosting
+#   - Make sure you haven't modified the zip after generating hash
+#
+# Players see Unicode characters instead of heads:
+#   - Resource pack didn't load - check above issues
+#   - Player declined the pack
+#   - Try manual installation (see RESOURCEPACK_SETUP_GUIDE.md)
+#
+# ============================================
+# Additional Server Settings (Optional)
+# ============================================
+
+# Maximum size of resource pack (default: 250 MB)
+# chathead-resourcepack.zip is only 3.1 KB, so no change needed
+# max-resource-pack-size=250000000
+
+# Enable command blocks (unrelated, but commonly configured)
+# enable-command-block=false
+
+# Server resource pack UUID (Java 1.20.3+)
+# resource-pack-id=<leave empty for auto-generated>
+
+# ============================================
+# For More Information
+# ============================================
+# See: RESOURCEPACK_SETUP_GUIDE.md
+# ChatHead API Docs: CHATHEAD_INTEGRATION_GUIDE.md
+# Offline Mode Explanation: OFFLINE_MODE_EXPLANATION.md

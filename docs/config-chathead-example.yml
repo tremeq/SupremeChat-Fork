@@ -1,0 +1,134 @@
+# ============================================
+# ChatHead Configuration Example
+# ============================================
+# Add this to your config.yml file
+
+chathead:
+  # Enable or disable the ChatHead system
+  # Set to false to completely disable player head rendering in chat
+  # Default: true
+  enabled: true
+
+  # Skin source for fetching player skins
+  #
+  # Available options:
+  #   AUTO     - Automatically selects the best source based on server mode [RECOMMENDED]
+  #              Online mode  -> Uses MOJANG (official, most reliable)
+  #              Offline mode -> Uses MINOTAR (supports name-based retrieval)
+  #
+  #   MOJANG   - Official Mojang API
+  #              ✅ Best for online mode servers
+  #              ❌ Does NOT work in offline mode (requires valid Mojang UUIDs)
+  #
+  #   MINOTAR  - Minotar service
+  #              ✅ Works in both online and offline mode
+  #              ✅ Supports name-based retrieval (perfect for cracked servers)
+  #              ⚡ Generally faster than Mojang
+  #
+  #   CRAFATAR - Crafatar service
+  #              ✅ Fast and reliable for online mode
+  #              ❌ Does NOT work in offline mode (UUID-based only)
+  #
+  #   MCHEADS  - MC-Heads service (currently uses Minotar implementation)
+  #              ✅ Works in both online and offline mode
+  #
+  # Default: AUTO
+  skin-source: AUTO
+
+  # How long to cache player heads (in minutes)
+  #
+  # Performance considerations:
+  #   - Longer cache = Better performance, less API calls, but skins update slower
+  #   - Shorter cache = More API calls, slightly worse performance, but fresher skins
+  #
+  # Recommended values:
+  #   Small servers (< 50 players):  2-5 minutes
+  #   Medium servers (50-200):       5-10 minutes
+  #   Large servers (200+):          10-15 minutes
+  #
+  # Default: 5
+  cache-time-minutes: 5
+
+  # Whether to include the second skin layer (helmet/overlay) by default
+  #
+  # true  = Show full head with hat/accessories (looks better, slightly slower)
+  # false = Show only base skin layer (faster, but no accessories)
+  #
+  # Note: You can still override this per-call in code using API methods
+  #
+  # Default: true
+  use-overlay-by-default: true
+
+
+# ============================================
+# Example Configurations for Different Setups
+# ============================================
+
+# --- For Cracked/Offline Servers ---
+# If your server.properties has: online-mode=false
+#
+# chathead:
+#   enabled: true
+#   skin-source: AUTO         # Will automatically use Minotar
+#   cache-time-minutes: 10    # Longer cache (offline skins change less)
+#   use-overlay-by-default: true
+
+# --- For Premium/Online Servers ---
+# If your server.properties has: online-mode=true
+#
+# chathead:
+#   enabled: true
+#   skin-source: AUTO         # Will automatically use Mojang
+#   cache-time-minutes: 5     # Standard cache
+#   use-overlay-by-default: true
+
+# --- For High-Performance Servers ---
+# Optimized for maximum performance
+#
+# chathead:
+#   enabled: true
+#   skin-source: MINOTAR      # Minotar is generally faster
+#   cache-time-minutes: 15    # Maximum recommended cache
+#   use-overlay-by-default: false  # Slightly faster without overlay
+
+# --- For Testing/Development ---
+# Quick skin updates for testing
+#
+# chathead:
+#   enabled: true
+#   skin-source: MINOTAR      # Fast and reliable
+#   cache-time-minutes: 1     # Quick updates
+#   use-overlay-by-default: true
+
+# --- To Disable ChatHead ---
+# If you don't want player heads in chat
+#
+# chathead:
+#   enabled: false
+#   # Other options are ignored when disabled
+
+
+# ============================================
+# Troubleshooting
+# ============================================
+
+# Problem: Heads not showing at all
+# Solution: Check that enabled: true and your skin-source is compatible
+#           with your server mode (online/offline)
+
+# Problem: Wrong skins showing
+# Solution: Reduce cache-time-minutes or reload: /supremechat reload
+
+# Problem: Performance issues
+# Solution: Increase cache-time-minutes to reduce API calls
+
+# Problem: Offline mode heads not working
+# Solution: Use skin-source: AUTO or MINOTAR (not MOJANG or CRAFATAR)
+
+
+# ============================================
+# Additional Resources
+# ============================================
+# - Full documentation: CHATHEAD_CONFIG_GUIDE.md
+# - Integration guide: CHATHEAD_INTEGRATION_GUIDE.md
+# - Offline mode explained: OFFLINE_MODE_EXPLANATION.md
