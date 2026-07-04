@@ -7,6 +7,10 @@
 # - Vault Support
 # ==================================================
 
+# The plugin prefix. Used everywhere the %prefix% placeholder appears.
+# Supports & color codes and hex colors (&#RRGGBB).
+prefix: '&#00ff94&lSupremeChat ➟ '
+
 # ==================================================
 # ANTI-BOT
 #
@@ -25,6 +29,108 @@ bypass-mute-chat-permission: 'supremechat.bypass.mutechat'
 ops-bypass-mute-chat: true
 # chat color permission (Allow players to use &0-f & hex colors in chat)
 chat-color-permission: 'supremechat.chat.color'
+
+# ==================================================
+# PLUGIN MESSAGES
+#
+# Every message the plugin writes directly to players is configurable here.
+# Supports & color codes, hex colors and %prefix% (replaced with the plugin prefix).
+# Set any message to '' (empty) to send nothing.
+# ==================================================
+messages:
+  # shown when a player lacks permission to run a command
+  no-permission: '&cNo Permission!'
+  # shown to the player after /supremechat reload
+  reload: '%prefix%&7Reloaded config files.'
+  # shown to a muted player when they try to chat while chat is muted
+  chat-muted: '&cChat is currently muted!'
+
+  # --- MUTE CHAT ( /supremechat mutechat ) ---
+  mutechat:
+    # broadcast to everyone when the chat gets muted
+    enabled: '&c[CHAT] Chat is now muted!'
+    # broadcast to everyone when the chat gets un-muted
+    disabled: '&c[CHAT] Chat no longer muted!'
+
+  # --- CLEAR CHAT ( /supremechat clearchat ) ---
+  clearchat:
+    # how many empty lines are sent to wipe each player's screen
+    lines: 100
+    # set false to clear the chat silently (no broadcast message)
+    broadcast-enabled: true
+    # broadcast shown to everyone after the chat is cleared. %player% = who cleared it
+    broadcast: '%prefix%&7Chat has been cleared by &e%player%&7.'
+    # players with this permission keep their chat (their screen is NOT cleared)
+    bypass-permission: 'supremechat.bypass.clearchat'
+
+  # --- CHANNELS ( /channel ) ---
+  channels:
+    # shown when the whole channel system is disabled (channels-enabled: false)
+    disabled: '%prefix%&cThe channel system is currently disabled.'
+    # /channel leave while not in a channel
+    not-in-channel: '&e&lChannel &8&l➟ &cYou are not in a channel.'
+    # /channel leave success. %channel% = channel name
+    left: '&e&lChannel &8&l➟ &7You have left channel: &e%channel%'
+    # /channel list. %channels% = comma separated list
+    list: '&e&lAvailable Channels &8&l➟ &e%channels%'
+    # shown inside the list when the player has access to no channels
+    list-empty: '&cNo channels found for you!'
+    # /channel join <name> - channel does not exist
+    not-exist: '&e&lChannel &8&l➟ &cThis channel does not exist.'
+    # /channel join <name> - no permission for that channel
+    no-permission-join: '&e&lChannel &8&l➟ &cYou do not have permission to join this channel.'
+    # /channel join <name> - already in that channel
+    already-in: '&e&lChannel &8&l➟ &cYou are already in this channel.'
+    # /channel join <name> - success. %channel% = channel name
+    joined: '&e&lChannel &8&l➟ &7You have been added to %channel% channel!'
+    # text shown for %channel% in the info menu when the player is in no channel
+    none: '&c&lNONE'
+    # /channel (or /channel help) info menu. %channel% = current channel (or 'none' above)
+    info:
+      - '&6&l> &7You are in channel: &e&l%channel%'
+      - '&6&l> &f/channel join <name> &7- To switch channel!'
+      - '&6&l> &f/channel list &7- List all available channels!'
+      - '&6&l> &f/channel leave &7- To leave the channel you are in!'
+
+  # --- MSGTOGGLE ( /msgtoggle ) - available to everyone ---
+  msgtoggle:
+    # shown to the player when they turn private messages OFF
+    now-blocking: '%prefix%&7You are now &cblocking&7 private messages.'
+    # shown to the player when they turn private messages ON
+    now-receiving: '%prefix%&7You are now &areceiving&7 private messages.'
+    # shown to a sender trying to message someone who disabled private messages
+    target-disabled: '&cThat player has private messages disabled.'
+
+  # --- IGNORE ( /ignore <player> ) - available to everyone ---
+  ignore:
+    # %player% = the ignored player's name
+    now-ignoring: '%prefix%&7You are now ignoring &e%player%&7.'
+    no-longer-ignoring: '%prefix%&7You are no longer ignoring &e%player%&7.'
+    cannot-ignore-self: '&cYou cannot ignore yourself.'
+    usage: '&cUsage: /ignore <player>'
+    # shown to a sender trying to message a player who is ignoring them
+    target-ignores-you: '&cYou cannot message this player.'
+
+  # --- ADMIN CHAT ( /ac <message> ) ---
+  adminchat:
+    usage: '&cUsage: /ac <message>'
+
+  # --- HELP MENU ( /supremechat ) ---
+  # set false to completely disable the help menu shown on /supremechat
+  # (useful if you reworked the plugin and don't want the default help)
+  help-enabled: false
+  # each line is sent to the player. supports %prefix% and %version%
+  help:
+    - '%prefix%&7Help Message:'
+    - ''
+    - '&6/supremechat reload &7- reload the plugin config.'
+    - '&6/supremechat mutechat &7- mutes the chat for everyone.'
+    - '&6/supremechat clearchat &7- clears the chat for everyone.'
+    - '&6/supremechat discordsrv &7- DiscordSRV integration debug report.'
+    - ''
+    - '&#fdc269Author: &#fff2ccDevScape'
+    - '&#fdc269Plugin Version: &#fff2cc%version%'
+    - '&#fdc269ScapeHelp Server: &#fff2cchttps://discord.gg/AnPwty8asP'
 
 # ==================================================
 # CHAT FORMATTING:
@@ -130,14 +236,38 @@ private-messages:
   cannot-message-self: '&cYou cannot send a message to yourself.'
   no-reply-target: '&cYou have no one to reply to.'
   reply-target-offline: '&cThat player is no longer online.'
+  # shown when a non-player (e.g. console) tries to use /msg or /reply
+  only-players: '&cThis command can only be used by players.'
+  # usage messages. %label% = the command alias that was used
+  usage-message: '&cUsage: /%label% <player> <message>'
+  usage-reply: '&cUsage: /%label% <message>'
+
+# ==================================================
+# ADMIN / STAFF CHAT ( /ac <message> )
+#
+# Broadcasts to everyone holding the permission below (plus console).
+# ==================================================
+admin-chat:
+  # set false to disable the /ac command entirely
+  enable: true
+  # permission required to send AND receive admin chat
+  permission: 'supremechat.adminchat'
+  # message format. %name% = sender name, %message% = the message
+  format: '&c&l[AdminChat] &f%name% &8➟ &c%message%'
+  # name shown when the console uses /ac
+  console-name: 'Console'
 
 # ==================================================
 # CHANNELS:
 # ==================================================
+# channels-enabled = Master switch for the WHOLE channel system.
+#   Set to false to disable channels entirely (command + chat), regardless of
+#   the per-channel 'enable' options below.
 # enable = Weather or not you want this channel to register on server load or plugin reload.
 # permission = Giving the channel a permission will not allow players without it join, Use None for all access.
 # chat-color = Is used for emojis suffix, this prevents players from using the emojis color to bypass chat color permissions.
 # format = The main format that will be used when sending to channel members.
+channels-enabled: true
 channels:
   english:
     enable: true
@@ -244,10 +374,21 @@ custom-commands:
 # ==================================================
 
 mention:
+  # mention a single player, e.g. "@Steve"
   player:
     permission: 'supremechat.mention.player'
     target: '@'
     replacement: '&e%target%'
+    spaces: true
+    sound:
+      enable: true
+      sound: 'ENTITY_PLAYER_LEVELUP'
+  # mention everyone online, e.g. "@everyone"
+  # requires the permission below.
+  everyone:
+    permission: 'supremechat.mention.everyone'
+    target: '@everyone'
+    replacement: '&c@everyone'
     spaces: true
     sound:
       enable: true
@@ -260,6 +401,10 @@ mention:
 # ==================================================
 
 word-detect-enable: true
+# If true, replaces banned words with asterisks (***) instead of blocking the entire message
+# Example: "hello badword" becomes "hello *******"
+# If false, blocks the entire message (old behavior)
+word-detect-blur: true
 word-detect: '&cThe word &7%word% &cis banned from the server!'
 word-detect-staff: '&c[Filter] &7%name%: &c[&7%message%&c]'
 word-detect-alert-staff: true
@@ -322,6 +467,22 @@ enable-command-spy: true
 cs-spy: '&c[Command-Spy] &7%name%: &f/%command%'
 whitelist-spy-commands:
   - 'spawn'
+
+# ==================================================
+# LOGGING
+#
+# SupremeChat writes log files into: plugins/SupremeChat/logs/
+#   - chat/<date>.log     -> chat messages
+#   - commands/<date>.log -> commands
+# ==================================================
+logging:
+  # log every chat message players send to logs/chat/<date>.log
+  # set false to disable chat logging completely.
+  # (blocked messages are still logged, tagged with a reason e.g. (BANNED WORD))
+  chat: true
+  # log every command players run to logs/commands/<date>.log
+  # set false to disable command logging completely.
+  commands: true
 
 # ==================================================
 # INTERACTIONS CHAT:

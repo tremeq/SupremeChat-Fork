@@ -26,7 +26,17 @@ import static net.devscape.project.supremechat.utils.FormatUtil.emojiReplacer;
 
 public class Message {
 
+    // Fallback prefix used only if 'prefix' is somehow missing from config.
     public static String PREFIX = "&#00ff94&lSupremeChat ➟ ";
+
+    /**
+     * Returns the plugin prefix, read live from config.yml ('prefix').
+     * Falls back to {@link #PREFIX} if the key is missing.
+     */
+    public static String getPrefix() {
+        String prefix = SupremeChat.getInstance().getConfig().getString("prefix");
+        return (prefix != null) ? prefix : PREFIX;
+    }
 
     private static Pattern p1 = Pattern.compile("\\{#([0-9A-Fa-f]{6})\\}");
     private static Pattern p2 = Pattern.compile("&#([A-Fa-f0-9]){6}");
@@ -189,6 +199,39 @@ public class Message {
             return msg;
         }
         return temp;
+    }
+
+    /**
+     * Fetches a configurable message from the "messages" section of config.yml.
+     * The %prefix% placeholder is automatically replaced with the plugin PREFIX.
+     * Other placeholders (like %player%) should be replaced by the caller.
+     *
+     * @param path the key under "messages." (e.g. "no-permission")
+     * @return the raw (un-formatted) message string, or "" if not set
+     */
+    public static String getMsg(String path) {
+        // No explicit default here on purpose: this lets Bukkit fall back to the
+        // config.yml bundled in the jar, so servers with an older config.yml (that
+        // lacks the "messages" section) still get the correct default text.
+        String msg = SupremeChat.getInstance().getConfig().getString("messages." + path);
+        if (msg == null) {
+            return "";
+        }
+        return msg.replace("%prefix%", getPrefix());
+    }
+
+    /**
+     * Fetches a configurable list of messages from the "messages" section.
+     * Each line has %prefix% replaced automatically.
+     *
+     * @param path the key under "messages." (e.g. "help")
+     * @return the list of raw message lines (empty list if not set)
+     */
+    public static List<String> getMsgList(String path) {
+        return SupremeChat.getInstance().getConfig().getStringList("messages." + path)
+                .stream()
+                .map(line -> line.replace("%prefix%", getPrefix()))
+                .collect(Collectors.toList());
     }
 
     public static String getGlobalFormat() {
@@ -404,6 +447,14 @@ public class Message {
      * @param isCommandLog  Whether the log is for a command or chat.
      */
     public static void createLog(Player player, String message, boolean isCommandLog) {
+        // Master logging switches. If the relevant log type is disabled, write nothing.
+        if (isCommandLog && !SupremeChat.getInstance().getConfig().getBoolean("logging.commands", true)) {
+            return;
+        }
+        if (!isCommandLog && !SupremeChat.getInstance().getConfig().getBoolean("logging.chat", true)) {
+            return;
+        }
+
         // Get the current date and time
         String date = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
         String time = new SimpleDateFormat("HH:mm:ss").format(new Date());

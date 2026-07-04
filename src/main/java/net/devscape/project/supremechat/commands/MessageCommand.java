@@ -22,7 +22,7 @@ public class MessageCommand implements CommandExecutor {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("This command can only be used by players.");
+            msgPlayer(sender, SupremeChat.getInstance().getConfig().getString("private-messages.only-players", "&cThis command can only be used by players."));
             return true;
         }
 
@@ -36,7 +36,7 @@ public class MessageCommand implements CommandExecutor {
 
         // Usage check
         if (args.length < 2) {
-            msgPlayer(senderPlayer, "&cUsage: /" + label + " <player> <message>");
+            msgPlayer(senderPlayer, SupremeChat.getInstance().getConfig().getString("private-messages.usage-message", "&cUsage: /%label% <player> <message>").replace("%label%", label));
             return true;
         }
 
@@ -64,6 +64,18 @@ public class MessageCommand implements CommandExecutor {
         // Check if trying to message self
         if (target.equals(senderPlayer)) {
             msgPlayer(senderPlayer, SupremeChat.getInstance().getConfig().getString("private-messages.cannot-message-self", "&cYou cannot send a message to yourself."));
+            return true;
+        }
+
+        // Respect the target's /msgtoggle (private messages disabled)
+        if (SupremeChat.getInstance().getChatDataManager().hasMessagesDisabled(target.getUniqueId())) {
+            msgPlayer(senderPlayer, getMsg("msgtoggle.target-disabled"));
+            return true;
+        }
+
+        // Respect the target's ignore list (target is ignoring the sender)
+        if (SupremeChat.getInstance().getChatDataManager().isIgnoring(target.getUniqueId(), senderPlayer.getUniqueId())) {
+            msgPlayer(senderPlayer, getMsg("ignore.target-ignores-you"));
             return true;
         }
 

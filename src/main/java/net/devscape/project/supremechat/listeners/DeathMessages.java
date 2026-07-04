@@ -37,13 +37,17 @@ public class DeathMessages implements Listener {
         // Check if the player was killed by another player
         if (player.getKiller() != null) {
             Player killer = player.getKiller();
-            msg = SupremeChat.getInstance().getConfig().getString("death.messages.entity_player");
-            msg = msg.replaceAll("%name%", player.getName());
-
-            // Replace %killer% with the player's killer's name
-            msg = msg.replaceAll("%killer%", killer.getName());
+            msg = SupremeChat.getInstance().getConfig().getString("death.messages.entity_player",
+                "&c%name% was killed by %killer%");
+            if (msg != null) {
+                msg = msg.replaceAll("%name%", player.getName());
+                // Replace %killer% with the player's killer's name
+                msg = msg.replaceAll("%killer%", killer.getName());
+            }
         } else {
-            msg = msg.replaceAll("%killer%", "Unknown");
+            if (msg != null) {
+                msg = msg.replaceAll("%killer%", "Unknown");
+            }
         }
 
         // Check if the death was caused by a mob
@@ -54,11 +58,15 @@ public class DeathMessages implements Listener {
             String mobName = (entity.getCustomName() != null) ? entity.getCustomName() : entity.getType().name().toLowerCase().replace("_", " ");
 
             // Replace the %mob% placeholder with the mob's name
-            msg = msg.replaceAll("%mob%", mobName);
+            if (msg != null) {
+                msg = msg.replaceAll("%mob%", mobName);
+            }
         } else {
-            msg = msg.replaceAll("%mob%", "Unknown Mob");
+            if (msg != null) {
+                msg = msg.replaceAll("%mob%", "Unknown Mob");
+            }
         }
-        return msg;
+        return msg != null ? msg : "&c" + player.getName() + " died.";
     }
 
 }

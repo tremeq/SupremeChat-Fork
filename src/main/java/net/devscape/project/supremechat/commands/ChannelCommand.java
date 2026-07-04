@@ -11,6 +11,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
+import static net.devscape.project.supremechat.utils.Message.getMsg;
+import static net.devscape.project.supremechat.utils.Message.getMsgList;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
 
 public class ChannelCommand implements CommandExecutor {
@@ -24,20 +26,26 @@ public class ChannelCommand implements CommandExecutor {
             Player player = (Player) sender;
 
             if (cmd.getName().equalsIgnoreCase("channel")) {
+                // Master switch for the whole channel system.
+                if (!SupremeChat.getInstance().getConfig().getBoolean("channels-enabled", true)) {
+                    msgPlayer(player, getMsg("channels.disabled"));
+                    return true;
+                }
+
                 if (player.hasPermission("supremechat.channel") || player.isOp()) {
                     if (args.length == 0) {
                         whatChannel(player);
                     } else if (args.length == 1) {
                         if (args[0].equalsIgnoreCase("leave")) {
                             if (!SupremeChat.getInstance().getChannelManager().isInChannel(player)) {
-                                msgPlayer(player, "&e&lChannel &8&l➟ &cYou are not in a channel.");
+                                msgPlayer(player, getMsg("channels.not-in-channel"));
                                 return true;
                             }
 
                             String channel = SupremeChat.getInstance().getChannelManager().getChannel(player).getName();
 
                             SupremeChat.getInstance().getChannelManager().getPlayerChannel().remove(player.getUniqueId());
-                            msgPlayer(player, "&e&lChannel &8&l➟ &7You have left channel: &e" + channel);
+                            msgPlayer(player, getMsg("channels.left").replace("%channel%", channel));
                         } else if (args[0].equalsIgnoreCase("help")) {
                             whatChannel(player);
                         } else if (args[0].equalsIgnoreCase("list")) {
@@ -52,38 +60,38 @@ public class ChannelCommand implements CommandExecutor {
                             String formatted = channels.toString().replace("[", "").replace("]", "");
 
                             if (channels.isEmpty()) {
-                                formatted = "&cNo channels found for you!";
+                                formatted = getMsg("channels.list-empty");
                             }
 
-                            msgPlayer(player, "&e&lAvailable Channels &8&l➟ &e" + formatted);
+                            msgPlayer(player, getMsg("channels.list").replace("%channels%", formatted));
                         }
                     } else if (args.length == 2) {
                         if (args[0].equalsIgnoreCase("join")) {
                             String channel = args[1];
 
                             if (!SupremeChat.getInstance().getChannelManager().isChannel(channel)) {
-                                msgPlayer(player, "&e&lChannel &8&l➟ &cThis channel does not exist.");
+                                msgPlayer(player, getMsg("channels.not-exist"));
                                 return true;
                             }
 
                             Channel c = SupremeChat.getInstance().getChannelManager().getChannel(channel);
 
                             if (!c.getPermission().equalsIgnoreCase("None") && !player.hasPermission(c.getPermission())) {
-                                msgPlayer(player, "&e&lChannel &8&l➟ &cYou do not have permission to join this channel.");
+                                msgPlayer(player, getMsg("channels.no-permission-join"));
                                 return true;
                             }
 
                             if (SupremeChat.getInstance().getChannelManager().getChannel(player) != null && SupremeChat.getInstance().getChannelManager().getChannel(player).getName().equalsIgnoreCase(channel)) {
-                                msgPlayer(player, "&e&lChannel &8&l➟ &cYou are already in this channel.");
+                                msgPlayer(player, getMsg("channels.already-in"));
                                 return true;
                             }
 
                             SupremeChat.getInstance().getChannelManager().addToChannel(player, channel);
-                            msgPlayer(player, "&e&lChannel &8&l➟ &7You have been added to " + channel + " channel!");
+                            msgPlayer(player, getMsg("channels.joined").replace("%channel%", channel));
                         }
                     }
                 } else {
-                    msgPlayer(player, "&cNo Permission!");
+                    msgPlayer(player, getMsg("no-permission"));
                 }
             }
         }
@@ -91,18 +99,15 @@ public class ChannelCommand implements CommandExecutor {
     }
 
     public void whatChannel(Player player) {
+        String channelName;
         if (SupremeChat.getInstance().getChannelManager().isInChannel(player)) {
-            msgPlayer(player,
-                    "&6&l> &7You are in channel: &e&l" + SupremeChat.getInstance().getChannelManager().getChannel(player).getName(),
-                    "&6&l> &f/channel join <name> &7- To switch channel!",
-                    "&6&l> &f/channel list &7- List all available channels!",
-                    "&6&l> &f/channel leave &7- To leave the channel you are in!");
+            channelName = SupremeChat.getInstance().getChannelManager().getChannel(player).getName();
         } else {
-            msgPlayer(player,
-                    "&6&l> &7You are in channel: &c&lNONE",
-                    "&6&l> &f/channel join <name> &7- To switch channel!",
-                    "&6&l> &f/channel list &7- List all available channels!",
-                    "&6&l> &f/channel leave &7- To leave the channel you are in!");
+            channelName = getMsg("channels.none");
+        }
+
+        for (String line : getMsgList("channels.info")) {
+            msgPlayer(player, line.replace("%channel%", channelName));
         }
     }
 }

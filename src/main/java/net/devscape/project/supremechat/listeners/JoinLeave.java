@@ -10,6 +10,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.UUID;
+
 import static net.devscape.project.supremechat.utils.Message.*;
 import static net.devscape.project.supremechat.utils.VanishCheckUtil.isVanished;
 
@@ -132,11 +134,22 @@ public class JoinLeave implements Listener {
             }
         }
 
-        SupremeChat.getInstance().getLastMessage().remove(player);
+        // MEMORY LEAK FIX: Clean up all player data using UUID
+        UUID playerUUID = player.getUniqueId();
+
+        // Clean lastMessage (UUID-based)
+        SupremeChat.getInstance().getLastMessage().remove(playerUUID);
+
+        // Clean Player-based lists
         SupremeChat.getInstance().getChatDelayList().remove(player);
         SupremeChat.getInstance().getCommandDelayList().remove(player);
         SupremeChat.getInstance().getPrevention().remove(player);
-        SupremeChat.getInstance().getLastMessengerMap().remove(player);
+
+        // Clean lastMessenger map (UUID-based)
+        // Remove both when this player is the KEY (sender)
+        SupremeChat.getInstance().getLastMessengerMap().remove(playerUUID);
+        // AND when this player is the VALUE (receiver) - prevents memory leak!
+        SupremeChat.getInstance().getLastMessengerMap().values().removeIf(uuid -> uuid.equals(playerUUID));
     }
 
     @EventHandler

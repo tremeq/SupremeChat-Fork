@@ -25,7 +25,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,8 +60,14 @@ public class Formatting implements Listener {
         }
 
         if (SupremeChat.getInstance().getConfig().getBoolean("mute-chat")) {
-            if (!player.hasPermission(Objects.requireNonNull(SupremeChat.getInstance().getConfig().getString("bypass-mute-chat-permission"))) || !player.isOp()) {
-                msgPlayer(player, "&cChat is currently muted!");
+            String bypassPerm = SupremeChat.getInstance().getConfig().getString("bypass-mute-chat-permission", "supremechat.bypass.mutechat");
+            boolean opsBypass = SupremeChat.getInstance().getConfig().getBoolean("ops-bypass-mute-chat", true);
+
+            boolean canBypass = (bypassPerm != null && !bypassPerm.isEmpty() && player.hasPermission(bypassPerm))
+                    || (opsBypass && player.isOp());
+
+            if (!canBypass) {
+                msgPlayer(player, getMsg("chat-muted"));
                 e.setCancelled(true);
                 return;
             }
@@ -70,32 +76,53 @@ public class Formatting implements Listener {
         // BANNED WORD DETECTION
         if (SupremeChat.getInstance().getConfig().getBoolean("word-detect-enable")) {
             if (!player.hasPermission("supremechat.bypass.filter") && !player.isOp()) {
-                for (String word : SupremeChat.getInstance().getConfig().getStringList("banned-words")) {
-                    if (isWordBlocked(e.getMessage(), word)) {
-                        e.setCancelled(true);
+                boolean blurMode = SupremeChat.getInstance().getConfig().getBoolean("word-detect-blur", true);
+                String originalMessage = e.getMessage();
+                String modifiedMessage = originalMessage;
 
+                for (String word : SupremeChat.getInstance().getConfig().getStringList("banned-words")) {
+                    if (isWordBlocked(modifiedMessage, word)) {
                         containsbadword = true;
 
-                        String detect = SupremeChat.getInstance().getConfig().getString("word-detect");
-                        detect = detect.replace("%word%", word);
+                        if (blurMode) {
+                            // BLUR MODE: Replace banned word with asterisks
+                            modifiedMessage = blurBannedWord(modifiedMessage, word);
+                        } else {
+                            // BLOCK MODE: Cancel entire message (old behavior)
+                            e.setCancelled(true);
 
-                        msgPlayer(player, detect);
-
-                        // alert staff
-                        for (Player staff : Bukkit.getOnlinePlayers()) {
-                            if (staff.hasPermission(SupremeChat.getInstance().getConfig().getString("detect-alert-staff-permission"))) {
-                                String detect_alert = SupremeChat.getInstance().getConfig().getString("word-detect-staff");
-                                detect_alert = detect_alert.replaceAll("%message%", e.getMessage());
-                                detect_alert = detect_alert.replace("%name%", player.getName());
-
-                                msgPlayer(staff, detect_alert);
-                                break;
+                            String detect = SupremeChat.getInstance().getConfig().getString("word-detect");
+                            if (detect != null) {
+                                detect = detect.replace("%word%", word);
+                                msgPlayer(player, detect);
                             }
                         }
 
-                        createLog(player, e.getMessage() + " (BANNED WORD)", false);
-                        break;
+                        // Alert staff (works in both modes)
+                        for (Player staff : Bukkit.getOnlinePlayers()) {
+                            if (staff.hasPermission(SupremeChat.getInstance().getConfig().getString("detect-alert-staff-permission"))) {
+                                String detect_alert = SupremeChat.getInstance().getConfig().getString("word-detect-staff");
+                                if (detect_alert != null) {
+                                    detect_alert = detect_alert.replaceAll("%message%", originalMessage);
+                                    detect_alert = detect_alert.replace("%name%", player.getName());
+                                    msgPlayer(staff, detect_alert);
+                                }
+                                // Removed break - all staff members with permission should receive alerts
+                            }
+                        }
+
+                        createLog(player, originalMessage + " (BANNED WORD)", false);
+
+                        if (!blurMode) {
+                            break; // In block mode, stop after first banned word
+                        }
+                        // In blur mode, continue to replace all banned words
                     }
+                }
+
+                // Apply the modified message if in blur mode
+                if (blurMode && containsbadword) {
+                    e.setMessage(modifiedMessage);
                 }
             }
         }
@@ -125,11 +152,13 @@ public class Formatting implements Listener {
         }
 
         // REPEAT FILTER
+        // MEMORY LEAK FIX: Use UUID instead of Player object
         if (SupremeChat.getInstance().getConfig().getBoolean("repeat-enable")) {
             if (!containsbadword) {
                 if (!player.hasPermission("supremechat.bypass.filter") && !player.isOp()) {
-                    if (SupremeChat.getInstance().getLastMessage().containsKey(player)) {
-                        String lastMessage = SupremeChat.getInstance().getLastMessage().get(player);
+                    UUID playerUUID = player.getUniqueId();
+                    if (SupremeChat.getInstance().getLastMessage().containsKey(playerUUID)) {
+                        String lastMessage = SupremeChat.getInstance().getLastMessage().get(playerUUID);
                         String newMessage = e.getMessage();
 
                         if (newMessage.contains(lastMessage)) {
@@ -140,12 +169,12 @@ public class Formatting implements Listener {
                             msgPlayer(player, SupremeChat.getInstance().getConfig().getString("repeat-warn"));
                             createLog(player, e.getMessage() + " (REPEATED)", false);
                         } else {
-                            SupremeChat.getInstance().getLastMessage().remove(player);
-                            SupremeChat.getInstance().getLastMessage().put(player, newMessage);
+                            SupremeChat.getInstance().getLastMessage().remove(playerUUID);
+                            SupremeChat.getInstance().getLastMessage().put(playerUUID, newMessage);
                         }
                     } else {
                         String newMessage = e.getMessage();
-                        SupremeChat.getInstance().getLastMessage().put(player, newMessage);
+                        SupremeChat.getInstance().getLastMessage().put(playerUUID, newMessage);
                     }
                 }
             }
@@ -198,6 +227,10 @@ public class Formatting implements Listener {
 
         /// CHAT FORMATTING
         if (!containsbadword && !repeated) {
+            // Log every message that actually gets sent. createLog respects the
+            // 'logging.chat' switch, so this does nothing when chat logging is off.
+            createLog(player, e.getMessage(), false);
+
             if (SupremeChat.getInstance().getChannelManager().isInChannel(player)) {
                 handleChannelFormat(e);
             } else {
@@ -280,6 +313,7 @@ public class Formatting implements Listener {
 
         if (chatFormat == null) {
             plugin.getLogger().warning("FINAL chatFormat is NULL! Exiting...");
+            e.setCancelled(true); // Cancel event to prevent default message
             return;
         }
 
@@ -366,6 +400,10 @@ public class Formatting implements Listener {
 
         // Send the formatted message manually to players
         for (Player online : Bukkit.getOnlinePlayers()) {
+            // Skip recipients who are ignoring the sender.
+            if (SupremeChat.getInstance().getChatDataManager().isIgnoring(online.getUniqueId(), player.getUniqueId())) {
+                continue;
+            }
             if (!perWorldChat || online.getWorld().equals(player.getWorld())) {
                 online.spigot().sendMessage(ChatMessageType.CHAT, msg);
             }
@@ -414,6 +452,17 @@ public class Formatting implements Listener {
 
         if (enableChatFormat) {
             Channel c = SupremeChat.getInstance().getChannelManager().getChannel(player);
+
+            // Defensive: the player's channel may no longer exist (removed or the
+            // channel system got disabled). Drop them back to normal chat instead
+            // of throwing a NullPointerException.
+            if (c == null) {
+                SupremeChat.getInstance().getChannelManager().getPlayerChannel().remove(player.getUniqueId());
+                e.setCancelled(false);
+                handleChatFormat(e);
+                return;
+            }
+
             String chatFormat = c.getFormat();
             List<Player> channelPlayers = new ArrayList<>();
 
@@ -432,6 +481,11 @@ public class Formatting implements Listener {
 
                 // Process each player in the channel
                 for (Player onlinePlayer : channelPlayers) {
+                    // Skip recipients who are ignoring the sender.
+                    if (SupremeChat.getInstance().getChatDataManager().isIgnoring(onlinePlayer.getUniqueId(), player.getUniqueId())) {
+                        continue;
+                    }
+
                     List<String[]> hoverMessages = new ArrayList<>();
 
                     if (hover) {
@@ -513,6 +567,34 @@ public class Formatting implements Listener {
 
         return matcher.find();
 
+    }
+
+    /**
+     * Replaces a banned word in the message with asterisks
+     * Example: "hello badword test" -> "hello ******* test"
+     *
+     * @param message The original message
+     * @param blockedWord The word to blur
+     * @return The message with the banned word replaced with asterisks
+     */
+    private static String blurBannedWord(String message, String blockedWord) {
+        String pattern = "\\b" + blockedWord + "\\b";
+        Pattern regex = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE);
+        Matcher matcher = regex.matcher(message);
+
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String foundWord = matcher.group();
+            // Create asterisks string (Java 8 compatible)
+            StringBuilder asterisks = new StringBuilder();
+            for (int i = 0; i < foundWord.length(); i++) {
+                asterisks.append('*');
+            }
+            matcher.appendReplacement(result, asterisks.toString());
+        }
+        matcher.appendTail(result);
+
+        return result.toString();
     }
 
     public static String stripAllColorCodes(String message) {

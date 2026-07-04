@@ -3,29 +3,32 @@ package net.devscape.project.supremechat;
 import net.devscape.project.supremechat.chatgames.GameManager;
 import net.devscape.project.supremechat.chathead.ChatHeadAPI;
 import net.devscape.project.supremechat.chathead.ResourcePackManager;
+import net.devscape.project.supremechat.commands.AdminChatCommand;
 import net.devscape.project.supremechat.commands.ChannelCommand;
 import net.devscape.project.supremechat.commands.EmojisCommands;
+import net.devscape.project.supremechat.commands.IgnoreCommand;
 import net.devscape.project.supremechat.commands.MessageCommand;
+import net.devscape.project.supremechat.commands.MsgToggleCommand;
 import net.devscape.project.supremechat.commands.ReplyCommand;
 import net.devscape.project.supremechat.commands.SCCommand;
 import net.devscape.project.supremechat.hooks.DiscordSRVHook;
 import net.devscape.project.supremechat.hooks.FloodgateHook;
 import net.devscape.project.supremechat.hooks.Metrics;
+import net.devscape.project.supremechat.hooks.VaultHook;
 import net.devscape.project.supremechat.listeners.*;
 import net.devscape.project.supremechat.managers.ChannelManager;
+import net.devscape.project.supremechat.managers.ChatDataManager;
 import net.devscape.project.supremechat.utils.FormatUtil;
-import net.milkbowl.vault.chat.Chat;
-import net.milkbowl.vault.permission.Permission;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public final class SupremeChat extends JavaPlugin {
 
@@ -38,27 +41,37 @@ public final class SupremeChat extends JavaPlugin {
 
     private static SupremeChat instance;
     private ChannelManager channelManager;
+    private ChatDataManager chatDataManager;
     private GameManager gameManager;
     private ResourcePackManager resourcePackManager;
 
-    private static Permission perms = null;
-    private static Chat chat;
+    // Whether Vault was found AND both its Chat/Permission providers were hooked.
+    // Kept as a plain boolean so callers can guard Vault usage WITHOUT referencing
+    // any net.milkbowl.vault.* class (which would crash when Vault isn't installed).
+    private static boolean vaultEnabled = false;
 
+    // MEMORY LEAK FIX: Use UUID instead of Player objects to prevent memory leaks
+    // Player objects are recreated on each join, old references prevent garbage collection
     private final List<Player> chatDelayList = new ArrayList<>();
     // prevention list for preventing bot attacks
     private final List<Player> prevention = new ArrayList<>();
     private final List<Player> commandDelayList = new ArrayList<>();
-    private final Map<Player, String> lastMessage = new HashMap<>();
+    private final Map<UUID, String> lastMessage = new HashMap<>();
     // tracking for /reply command - stores last person each player messaged
-    private final Map<Player, Player> lastMessenger = new HashMap<>();
+    // Changed from Map<Player, Player> to Map<UUID, UUID> to prevent memory leaks
+    private final Map<UUID, UUID> lastMessenger = new HashMap<>();
     private FormatUtil formattingUtils;
 
     public static SupremeChat getInstance() {
         return instance;
     }
 
-    public static Chat getChat() {
-        return chat;
+    /**
+     * @return true if Vault is installed and its Chat provider was hooked.
+     * Callers should check this BEFORE using any Vault-backed feature.
+     */
+    public static boolean isVaultEnabled() {
+        return vaultEnabled;
     }
 
     @Override
@@ -90,6 +103,11 @@ public final class SupremeChat extends JavaPlugin {
             FloodgateHook.disable();
         } catch (Exception e) {
             // Ignore if not initialized
+        }
+
+        // Persist player chat data (msgtoggle / ignore lists) before shutdown.
+        if (chatDataManager != null) {
+            chatDataManager.save();
         }
 
         chatDelayList.clear();
@@ -130,6 +148,7 @@ public final class SupremeChat extends JavaPlugin {
         }
 
         channelManager = new ChannelManager();
+        chatDataManager = new ChatDataManager(this);
         gameManager = new GameManager(this);
         gameManager.startScheduler();
 
@@ -146,6 +165,10 @@ public final class SupremeChat extends JavaPlugin {
         ReplyCommand replyCommand = new ReplyCommand();
         getCommand("reply").setExecutor(replyCommand);
         getCommand("r").setExecutor(replyCommand);
+
+        getCommand("msgtoggle").setExecutor(new MsgToggleCommand());
+        getCommand("ignore").setExecutor(new IgnoreCommand());
+        getCommand("adminchat").setExecutor(new AdminChatCommand());
 
         getServer().getPluginManager().registerEvents(new Formatting(), this);
         getServer().getPluginManager().registerEvents(new JoinLeave(), this);
@@ -191,11 +214,15 @@ public final class SupremeChat extends JavaPlugin {
     private boolean setupVault() {
         boolean debugMode = getConfig().getBoolean("debug-mode", false);
 
+        // Only touch Vault classes if the Vault plugin is actually installed.
+        // This guard MUST come before any reference to net.milkbowl.vault.* so the
+        // plugin runs cleanly on servers without Vault (rank formatting is skipped).
         if (Bukkit.getPluginManager().getPlugin("Vault") == null) {
-            getLogger().warning("Vault plugin not found! Some features may not work correctly.");
+            getLogger().info("Vault not found - rank/group based chat formatting is disabled.");
             if (debugMode) {
                 getLogger().info("[DEBUG] Vault status: NOT FOUND");
             }
+            vaultEnabled = false;
             return false;
         }
 
@@ -203,44 +230,20 @@ public final class SupremeChat extends JavaPlugin {
             getLogger().info("[DEBUG] Vault status: FOUND");
         }
 
-        RegisteredServiceProvider<Permission> permProvider = getServer().getServicesManager()
-                .getRegistration(Permission.class);
-        if (permProvider == null) {
-            getLogger().warning("Vault Permission provider not found!");
-            if (debugMode) {
-                getLogger().info("[DEBUG] Permission provider: NOT AVAILABLE");
-            }
-            return false;
+        try {
+            vaultEnabled = VaultHook.setup(this, debugMode);
+        } catch (NoClassDefFoundError | Exception e) {
+            getLogger().warning("Failed to hook into Vault: " + e.getMessage());
+            vaultEnabled = false;
         }
 
-        perms = permProvider.getProvider();
-        if (debugMode) {
-            getLogger().info("[DEBUG] Permission provider: " + perms.getName());
-        }
-
-        RegisteredServiceProvider<Chat> chatProvider = getServer().getServicesManager()
-                .getRegistration(Chat.class);
-        if (chatProvider == null) {
-            getLogger().warning("Vault Chat provider not found!");
-            if (debugMode) {
-                getLogger().info("[DEBUG] Chat provider: NOT AVAILABLE");
-            }
-            return false;
-        }
-        chat = chatProvider.getProvider();
-
-        if (debugMode) {
-            getLogger().info("[DEBUG] Chat provider: " + chat.getName());
-            getLogger().info("[DEBUG] Vault setup: SUCCESSFUL");
-        } else {
+        if (vaultEnabled) {
             getLogger().info("Vault hooked successfully!");
+        } else {
+            getLogger().info("Vault present but no Chat provider - rank/group formatting disabled.");
         }
 
-        return true;
-    }
-
-    public static Permission getPermissions() {
-        return perms;
+        return vaultEnabled;
     }
 
 
@@ -294,7 +297,7 @@ public final class SupremeChat extends JavaPlugin {
         }
     }
 
-    public Map<Player, String> getLastMessage() {
+    public Map<UUID, String> getLastMessage() {
         return lastMessage;
     }
 
@@ -304,19 +307,45 @@ public final class SupremeChat extends JavaPlugin {
 
     public ChannelManager getChannelManager() { return channelManager; }
 
+    public ChatDataManager getChatDataManager() { return chatDataManager; }
+
     public GameManager getGameManager() {
         return gameManager;
     }
 
+    /**
+     * Sets the last messenger for reply tracking.
+     * MEMORY LEAK FIX: Now uses UUID instead of Player objects.
+     *
+     * @param player The player who sent the message
+     * @param target The player who received the message
+     */
     public void setLastMessenger(Player player, Player target) {
-        lastMessenger.put(player, target);
+        lastMessenger.put(player.getUniqueId(), target.getUniqueId());
     }
 
+    /**
+     * Gets the last messenger for a player (for /reply command).
+     * MEMORY LEAK FIX: Now uses UUID and returns Player by looking up online player.
+     *
+     * @param player The player to check
+     * @return The last messenger, or null if not found or not online
+     */
     public Player getLastMessenger(Player player) {
-        return lastMessenger.get(player);
+        UUID targetUUID = lastMessenger.get(player.getUniqueId());
+        if (targetUUID == null) {
+            return null;
+        }
+        return Bukkit.getPlayer(targetUUID);
     }
 
-    public Map<Player, Player> getLastMessengerMap() {
+    /**
+     * Gets the last messenger map.
+     * MEMORY LEAK FIX: Now returns Map<UUID, UUID> instead of Map<Player, Player>.
+     *
+     * @return The last messenger map
+     */
+    public Map<UUID, UUID> getLastMessengerMap() {
         return lastMessenger;
     }
 
@@ -443,6 +472,13 @@ public final class SupremeChat extends JavaPlugin {
         }
         if (!config.isSet("chathead.disable-for-bedrock")) {
             config.set("chathead.disable-for-bedrock", true);
+            configChanged = true;
+        }
+        // MEMORY LEAK FIX: Add max-cache-size option (v1.15.1+)
+        if (!config.isSet("chathead.max-cache-size")) {
+            config.set("chathead.max-cache-size", 5000);
+            getLogger().info("Added new config option: chathead.max-cache-size (default: 5000)");
+            getLogger().info("  This prevents unbounded memory growth from player head caching");
             configChanged = true;
         }
 

@@ -35,6 +35,17 @@ commands:
     description: 'Reply to the last player who messaged you.'
     usage: '/r <message>'
     permission: 'supremechat.reply'
+  msgtoggle:
+    description: 'Toggle receiving private messages.'
+    usage: '/msgtoggle'
+    aliases: [pmtoggle, togglemsg]
+  ignore:
+    description: 'Ignore or unignore another player.'
+    usage: '/ignore <player>'
+  adminchat:
+    description: 'Send a message to admin/staff chat.'
+    usage: '/ac <message>'
+    aliases: [ac]
 
 permissions:
   supremechat.bypass.chatcooldown:
@@ -55,3 +66,21 @@ permissions:
   supremechat.reply:
     description: 'Reply to private messages'
     default: true
+  supremechat.commandspy.alert:
+    description: 'Receive command spy alerts when players use commands'
+    default: op
+  supremechat.bypass.mutechat:
+    description: 'Bypass chat mute and speak while chat is muted'
+    default: op
+  supremechat.bypass.clearchat:
+    description: 'Keep your chat history when an admin clears the chat'
+    default: false
+  supremechat.mention.player:
+    description: 'Mention a single player in chat (e.g. @Steve)'
+    default: true
+  supremechat.mention.everyone:
+    description: 'Mention everyone online in chat (e.g. @everyone)'
+    default: op
+  supremechat.adminchat:
+    description: 'Send and receive admin/staff chat via /ac'
+    default: op

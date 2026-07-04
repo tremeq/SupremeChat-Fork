@@ -10,7 +10,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import static net.devscape.project.supremechat.utils.Message.PREFIX;
+import static net.devscape.project.supremechat.utils.Message.getMsg;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
 
 public class SCCommand implements CommandExecutor {
@@ -30,7 +30,9 @@ public class SCCommand implements CommandExecutor {
                     } else if (args.length == 1) {
                         if (args[0].equalsIgnoreCase("reload")) {
                             SupremeChat.getInstance().reload();
-                            msgPlayer(player, PREFIX + " &7Reloaded config files.");
+                            msgPlayer(player, getMsg("reload"));
+                        } else if (args[0].equalsIgnoreCase("clearchat") || args[0].equalsIgnoreCase("cc")) {
+                            clearChat(player);
                         } else if (args[0].equalsIgnoreCase("discordsrv") || args[0].equalsIgnoreCase("discord")) {
                             msgPlayer(player, "&e&m-------------------------------------------");
                             msgPlayer(player, "&6&lDiscordSRV Integration Debug Report");
@@ -58,7 +60,7 @@ public class SCCommand implements CommandExecutor {
 
                                 SupremeChat.getInstance().reload();
                                 for (Player all : Bukkit.getOnlinePlayers()) {
-                                    msgPlayer(all, "&c[CHAT] Chat no longer muted!");
+                                    msgPlayer(all, getMsg("mutechat.disabled"));
                                 }
                             } else {
                                 SupremeChat.getInstance().getConfig().set("mute-chat", true);
@@ -66,16 +68,46 @@ public class SCCommand implements CommandExecutor {
 
                                 SupremeChat.getInstance().reload();
                                 for (Player all : Bukkit.getOnlinePlayers()) {
-                                    msgPlayer(all, "&c[CHAT] Chat is now muted!");
+                                    msgPlayer(all, getMsg("mutechat.enabled"));
                                 }
                             }
                         }
                     }
                 } else {
-                    msgPlayer(player, "&cNo Permission!");
+                    msgPlayer(player, getMsg("no-permission"));
                 }
             }
         }
         return false;
+    }
+
+    /**
+     * Clears the chat for every online player by sending a configurable number of
+     * blank lines. Players with the configured bypass permission keep their chat.
+     * A configurable broadcast is then shown announcing who cleared the chat.
+     *
+     * @param clearer the player who executed the clear command
+     */
+    private void clearChat(Player clearer) {
+        int lines = SupremeChat.getInstance().getConfig().getInt("messages.clearchat.lines", 100);
+        String bypassPermission = SupremeChat.getInstance().getConfig()
+                .getString("messages.clearchat.bypass-permission", "supremechat.bypass.clearchat");
+
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            // Players with the bypass permission keep their chat history untouched.
+            if (bypassPermission != null && !bypassPermission.isEmpty() && online.hasPermission(bypassPermission)) {
+                continue;
+            }
+            for (int i = 0; i < lines; i++) {
+                online.sendMessage(" ");
+            }
+        }
+
+        if (SupremeChat.getInstance().getConfig().getBoolean("messages.clearchat.broadcast-enabled", true)) {
+            String broadcast = getMsg("clearchat.broadcast").replace("%player%", clearer.getName());
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                msgPlayer(online, broadcast);
+            }
+        }
     }
 }

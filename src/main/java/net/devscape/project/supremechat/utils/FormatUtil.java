@@ -1,6 +1,7 @@
 package net.devscape.project.supremechat.utils;
 
 import net.devscape.project.supremechat.SupremeChat;
+import net.devscape.project.supremechat.hooks.VaultHook;
 import net.devscape.project.supremechat.object.Channel;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -14,11 +15,20 @@ public class FormatUtil {
     // GET RANK
     // ==================================================
     public static String getRank(Player player) {
-        if (SupremeChat.getChat().getPrimaryGroup(player) == null) {
+        // Guard with a plain boolean FIRST. This must not touch any Vault class,
+        // otherwise the JVM would try to load net.milkbowl.vault.chat.Chat and throw
+        // NoClassDefFoundError on servers that don't have Vault installed.
+        if (!SupremeChat.isVaultEnabled()) {
             return "default";
         }
 
-        return SupremeChat.getChat().getPrimaryGroup(player);
+        // Safe to touch Vault now (isolated inside VaultHook).
+        String group = VaultHook.getPrimaryGroup(player);
+        if (group == null) {
+            return "default";
+        }
+
+        return group;
     }
 
     // ==================================================
@@ -26,16 +36,15 @@ public class FormatUtil {
     // ==================================================
 
     public static void sendHelp(Player player) {
-        msgPlayer(player,
-                PREFIX + " &7Help Message:",
-                "",
-                "&6/supremechat reload &7- reload the plugin config.",
-                "&6/supremechat mutechat &7- mutes the chat for everyone.",
-                "&6/supremechat discordsrv &7- DiscordSRV integration debug report.",
-                "",
-                "&#fdc269Author: &#fff2ccDevScape",
-                "&#fdc269Plugin Version: &#fff2cc" + SupremeChat.getInstance().getDescription().getVersion(),
-                "&#fdc269ScapeHelp Server: &#fff2ccfhttps://discord.gg/AnPwty8asP");
+        // Allow the help menu to be turned off entirely (e.g. reworked plugins).
+        if (!SupremeChat.getInstance().getConfig().getBoolean("messages.help-enabled", true)) {
+            return;
+        }
+
+        String version = SupremeChat.getInstance().getDescription().getVersion();
+        for (String line : getMsgList("help")) {
+            msgPlayer(player, line.replace("%version%", version));
+        }
     }
 
     public static String emojiReplacer(Player player, String message, boolean isInChannel, boolean isNormalChat) {

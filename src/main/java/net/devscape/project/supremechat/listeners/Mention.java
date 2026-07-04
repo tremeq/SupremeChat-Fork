@@ -33,6 +33,8 @@ public class Mention implements Listener {
             boolean addSpaces = SupremeChat.getInstance().getConfig().getBoolean("mention.everyone.spaces");
             if (addSpaces) {
                 for (Player all : getServer().getOnlinePlayers()) {
+                    // Don't ping players who are ignoring the sender.
+                    if (ignores(all, sender)) continue;
                     all.sendMessage("");
                 }
             }
@@ -55,6 +57,11 @@ public class Mention implements Listener {
 
         // Handle individual player mention if sender has permission
         if (target != null && p_permission != null && message.contains(targetStringPlayer + target.getName()) && sender.hasPermission(p_permission)) {
+            // If the target is ignoring the sender, don't ping/notify them at all.
+            if (ignores(target, sender)) {
+                return;
+            }
+
             boolean addSpaces = SupremeChat.getInstance().getConfig().getBoolean("mention.player.spaces");
             if (addSpaces) {
                 target.sendMessage("");
@@ -64,9 +71,18 @@ public class Mention implements Listener {
         }
     }
 
+    /**
+     * @return true if {@code recipient} is ignoring {@code sender}.
+     */
+    private boolean ignores(Player recipient, Player sender) {
+        return SupremeChat.getInstance().getChatDataManager()
+                .isIgnoring(recipient.getUniqueId(), sender.getUniqueId());
+    }
+
     // Helper method to handle mentions
     private void handleMention(AsyncPlayerChatEvent event, Player target, String mentionText, String type) {
         SupremeChat plugin = SupremeChat.getInstance();
+        Player sender = event.getPlayer();
         String replacement = plugin.getConfig().getString("mention." + type + ".replacement");
         boolean addSpaces = plugin.getConfig().getBoolean("mention." + type + ".spaces");
         String soundConfig = plugin.getConfig().getString("mention." + type + ".sound.sound");
@@ -88,6 +104,7 @@ public class Mention implements Listener {
                     public void run() {
                         if (isEveryone) {
                             for (Player all : getServer().getOnlinePlayers()) {
+                                if (ignores(all, sender)) continue;
                                 all.sendMessage("");
                             }
                         } else {
@@ -109,9 +126,15 @@ public class Mention implements Listener {
                     Bukkit.getLogger().warning("Invalid sound: " + soundConfig);
                 }
             } else {
-                for (Player all : getServer().getOnlinePlayers()) {
+                // @everyone mention - play sound for all online players
+                try {
                     Sound sound = Sound.valueOf(soundConfig.toUpperCase());
-                    all.playSound(all.getLocation(), sound, 1, 1);
+                    for (Player all : getServer().getOnlinePlayers()) {
+                        if (ignores(all, sender)) continue;
+                        all.playSound(all.getLocation(), sound, 1, 1);
+                    }
+                } catch (IllegalArgumentException e) {
+                    Bukkit.getLogger().warning("Invalid sound for @everyone: " + soundConfig);
                 }
             }
         }

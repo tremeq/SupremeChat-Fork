@@ -8,6 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import static net.devscape.project.supremechat.utils.Message.getMsg;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
 import static net.devscape.project.supremechat.utils.VanishCheckUtil.isVanished;
 
@@ -16,7 +17,7 @@ public class ReplyCommand implements CommandExecutor {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("This command can only be used by players.");
+            msgPlayer(sender, SupremeChat.getInstance().getConfig().getString("private-messages.only-players", "&cThis command can only be used by players."));
             return true;
         }
 
@@ -30,7 +31,7 @@ public class ReplyCommand implements CommandExecutor {
 
         // Usage check
         if (args.length < 1) {
-            msgPlayer(senderPlayer, "&cUsage: /" + label + " <message>");
+            msgPlayer(senderPlayer, SupremeChat.getInstance().getConfig().getString("private-messages.usage-reply", "&cUsage: /%label% <message>").replace("%label%", label));
             return true;
         }
 
@@ -54,6 +55,18 @@ public class ReplyCommand implements CommandExecutor {
                 msgPlayer(senderPlayer, SupremeChat.getInstance().getConfig().getString("private-messages.reply-target-offline", "&cThat player is no longer online."));
                 return true;
             }
+        }
+
+        // Respect the target's /msgtoggle (private messages disabled)
+        if (SupremeChat.getInstance().getChatDataManager().hasMessagesDisabled(lastMessenger.getUniqueId())) {
+            msgPlayer(senderPlayer, getMsg("msgtoggle.target-disabled"));
+            return true;
+        }
+
+        // Respect the target's ignore list (target is ignoring the sender)
+        if (SupremeChat.getInstance().getChatDataManager().isIgnoring(lastMessenger.getUniqueId(), senderPlayer.getUniqueId())) {
+            msgPlayer(senderPlayer, getMsg("ignore.target-ignores-you"));
+            return true;
         }
 
         // Build message

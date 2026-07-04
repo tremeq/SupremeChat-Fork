@@ -13,11 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Enhanced HeadCache with support for both UUID and username-based caching.
  * This is crucial for offline mode servers where UUID is unreliable.
+ *
+ * MEMORY LEAK FIX: Added configurable maximum cache size with LRU eviction.
  */
 public class HeadCache {
 
     private final JavaPlugin plugin;
     private final long cacheExpiration; // Now configurable!
+    private final int maxCacheSize; // MEMORY LEAK FIX: Hard limit on cache size
 
     private final Map<String, CachedHead> cache = new ConcurrentHashMap<>();
     private final Map<String, Boolean> pendingRequests = new ConcurrentHashMap<>();
@@ -30,8 +33,36 @@ public class HeadCache {
         int cacheMinutes = plugin.getConfig().getInt("chathead.cache-time-minutes", 5);
         this.cacheExpiration = cacheMinutes * 60 * 1000L; // Convert to milliseconds
 
+        // MEMORY LEAK FIX: Read max cache size from config, default to 5000
+        this.maxCacheSize = plugin.getConfig().getInt("chathead.max-cache-size", 5000);
+
         plugin.getLogger().info("ChatHead cache expiration set to " + cacheMinutes + " minutes");
+        plugin.getLogger().info("ChatHead max cache size set to " + maxCacheSize + " entries");
         startCacheCleanupTask();
+    }
+
+    /**
+     * MEMORY LEAK FIX: Checks if cache size exceeds limit and evicts oldest entries.
+     * This prevents unbounded memory growth from accumulating too many player heads.
+     */
+    private void enforceCacheSizeLimit() {
+        if (cache.size() <= maxCacheSize) {
+            return; // Within limit, no action needed
+        }
+
+        // Cache exceeded limit - evict oldest entries
+        int toRemove = cache.size() - maxCacheSize;
+        plugin.getLogger().fine("[HeadCache] Cache size (" + cache.size() + ") exceeded limit (" +
+                                 maxCacheSize + "), removing " + toRemove + " oldest entries");
+
+        // Find and remove oldest entries based on timestamp
+        cache.entrySet().stream()
+            .sorted((e1, e2) -> Long.compare(e1.getValue().getTimestamp(), e2.getValue().getTimestamp()))
+            .limit(toRemove)
+            .map(Map.Entry::getKey)
+            .forEach(cache::remove);
+
+        plugin.getLogger().fine("[HeadCache] Eviction complete, new size: " + cache.size());
     }
 
     /**
@@ -60,6 +91,8 @@ public class HeadCache {
                 BaseComponent[] head = skinSource.getHead(player, overlay);
                 if (head != null && head.length > 0 && plugin.isEnabled()) {
                     cache.put(cacheKey, new CachedHead(head, overlay, System.currentTimeMillis()));
+                    // MEMORY LEAK FIX: Enforce cache size limit after adding new entry
+                    enforceCacheSizeLimit();
                 }
                 pendingRequests.remove(cacheKey);
             });
@@ -99,6 +132,8 @@ public class HeadCache {
                 BaseComponent[] head = skinSource.getHeadByName(playerName, overlay);
                 if (head != null && head.length > 0 && plugin.isEnabled()) {
                     cache.put(cacheKey, new CachedHead(head, overlay, System.currentTimeMillis()));
+                    // MEMORY LEAK FIX: Enforce cache size limit after adding new entry
+                    enforceCacheSizeLimit();
                 }
                 pendingRequests.remove(cacheKey);
             });
@@ -111,15 +146,44 @@ public class HeadCache {
         return System.currentTimeMillis() - cachedHead.getTimestamp() > cacheExpiration;
     }
 
+    /**
+     * CACHE REFRESH FIX: Changed behavior to NOT delete expired entries.
+     *
+     * OLD BEHAVIOR (BAD):
+     * - Deleted expired cache entries completely
+     * - Caused empty heads on first message after expiration
+     * - Second message would show head (after async fetch completed)
+     *
+     * NEW BEHAVIOR (GOOD):
+     * - Keep expired entries as "stale cache"
+     * - Always show SOME head (even if outdated) while refreshing
+     * - Background async refresh updates to fresh head
+     * - LRU eviction (enforceCacheSizeLimit) controls memory, not this task
+     *
+     * This provides better UX: players always see heads, never empty messages.
+     */
     private void startCacheCleanupTask() {
         if (cacheCleanupTask != null) {
             cacheCleanupTask.cancel();
         }
 
-        // Run cleanup task at intervals equal to cache expiration time
+        // Run monitoring task to log cache statistics (for debugging)
+        // Does NOT delete expired entries - they serve as stale cache during refresh
         long cleanupInterval = cacheExpiration / 20; // Convert ms to ticks
         cacheCleanupTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-            cache.entrySet().removeIf(entry -> isExpired(entry.getValue()));
+            // Count expired entries for monitoring
+            long expiredCount = cache.values().stream()
+                .filter(this::isExpired)
+                .count();
+
+            if (expiredCount > 0) {
+                plugin.getLogger().fine("[HeadCache] Stats: " + cache.size() + " total entries, " +
+                                       expiredCount + " expired (serving as stale cache)");
+            }
+
+            // NOTE: We do NOT remove expired entries here!
+            // They are kept as "stale cache" to prevent empty heads during async refresh.
+            // Memory is controlled by LRU eviction in enforceCacheSizeLimit().
         }, cleanupInterval, cleanupInterval);
     }
 
@@ -133,6 +197,35 @@ public class HeadCache {
      */
     private String getCacheKeyByName(String playerName, boolean overlay) {
         return "name:" + playerName.toLowerCase() + ":" + overlay;
+    }
+
+    /**
+     * DIAGNOSTIC: Gets current cache size.
+     * Useful for monitoring memory usage.
+     *
+     * @return Number of entries currently in cache
+     */
+    public int getCacheSize() {
+        return cache.size();
+    }
+
+    /**
+     * DIAGNOSTIC: Gets maximum cache size limit.
+     *
+     * @return Maximum allowed cache entries
+     */
+    public int getMaxCacheSize() {
+        return maxCacheSize;
+    }
+
+    /**
+     * DIAGNOSTIC: Clears all cached heads.
+     * Should only be used for troubleshooting or after config changes.
+     */
+    public void clearCache() {
+        int sizeBefore = cache.size();
+        cache.clear();
+        plugin.getLogger().info("[HeadCache] Cache manually cleared. Removed " + sizeBefore + " entries.");
     }
 
     /**

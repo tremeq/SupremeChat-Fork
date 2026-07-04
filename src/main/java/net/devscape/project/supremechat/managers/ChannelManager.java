@@ -46,6 +46,12 @@ public class ChannelManager {
     }
 
     public void loadChannels() {
+        // Master switch: if the channel system is disabled, load nothing so that
+        // neither the command nor channel chat formatting can be used.
+        if (!SupremeChat.getInstance().getConfig().getBoolean("channels-enabled", true)) {
+            return;
+        }
+
         if (SupremeChat.getInstance().getConfig().getConfigurationSection("channels") != null) {
             for (String channel : SupremeChat.getInstance().getConfig().getConfigurationSection("channels").getKeys(false)) {
                 String format = SupremeChat.getInstance().getConfig().getString("channels." + channel + ".format");
@@ -63,6 +69,10 @@ public class ChannelManager {
 
     public void reloadChannels() {
         channels.clear();
+        // Drop every player's channel assignment as well. Otherwise a player who
+        // was in a channel that got removed/disabled during reload would still be
+        // flagged as "in a channel", but getChannel() would return null -> NPE.
+        playerChannel.clear();
         loadChannels();
     }
 

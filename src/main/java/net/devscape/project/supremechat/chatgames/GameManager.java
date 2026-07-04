@@ -68,10 +68,59 @@ public class GameManager {
         return SupremeChat.getInstance().getConfig().getStringList("chatgames." + game + ".reward-commands");
     }
 
+    /**
+     * Validates that a player name is safe for command execution.
+     * Minecraft player names must be 3-16 characters, alphanumeric + underscore only.
+     * If a player has an invalid name, it indicates a modified client or proxy injection.
+     *
+     * @param playerName The player name to validate
+     * @return true if the name is safe, false otherwise
+     */
+    private boolean isPlayerNameSafe(String playerName) {
+        // Minecraft username requirements: 3-16 chars, alphanumeric + underscore
+        return playerName != null && playerName.matches("^[a-zA-Z0-9_]{3,16}$");
+    }
+
+    /**
+     * Executes reward commands for a player who won a chat game.
+     * SECURITY: Validates player name to prevent command injection attacks.
+     *
+     * @param player The player who won
+     * @param game The game type (math, trivia, word-unscrambler)
+     */
     public void executeRewardCommands(Player player, String game) {
+        String playerName = player.getName();
+
+        // SECURITY CHECK: Prevent command injection via malicious player names
+        if (!isPlayerNameSafe(playerName)) {
+            plugin.getLogger().severe("═══════════════════════════════════════════════════");
+            plugin.getLogger().severe("⚠ SECURITY ALERT - COMMAND INJECTION ATTEMPT ⚠");
+            plugin.getLogger().severe("Blocked command execution for unsafe player name!");
+            plugin.getLogger().severe("Player: " + playerName);
+            plugin.getLogger().severe("UUID: " + player.getUniqueId());
+            plugin.getLogger().severe("Game: " + game);
+            plugin.getLogger().severe("This indicates a modified client or proxy attack.");
+            plugin.getLogger().severe("═══════════════════════════════════════════════════");
+
+            // Notify online staff
+            for (Player staff : Bukkit.getOnlinePlayers()) {
+                if (staff.hasPermission("supremechat.admin") || staff.isOp()) {
+                    staff.sendMessage("§c§l[SECURITY] §fBlocked command injection attempt from: §e" + playerName);
+                }
+            }
+            return;
+        }
+
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (String cmds : rewardCommands(game)) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmds.replace("%player%", player.getName()));
+                String command = cmds.replace("%player%", playerName);
+
+                // Log command execution for audit trail
+                if (plugin.getConfig().getBoolean("debug-mode", false)) {
+                    plugin.getLogger().info("[ChatGames] Executing reward: " + command);
+                }
+
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
             }
         });
     }

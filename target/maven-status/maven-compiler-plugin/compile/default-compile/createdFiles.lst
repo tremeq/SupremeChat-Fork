@@ -11,6 +11,7 @@ net\devscape\project\supremechat\listeners\JoinLeave.class
 net\devscape\project\supremechat\hooks\Metrics$SimplePie.class
 net\devscape\project\supremechat\listeners\CommandFilter$1.class
 net\devscape\project\supremechat\chathead\SkinSource.class
+net\devscape\project\supremechat\commands\IgnoreCommand.class
 net\devscape\project\supremechat\commands\MessageCommand.class
 net\devscape\project\supremechat\hooks\Metrics$AdvancedPie.class
 net\devscape\project\supremechat\listeners\CommandFilter.class
@@ -19,6 +20,7 @@ net\devscape\project\supremechat\chathead\ChatHeadAPI.class
 net\devscape\project\supremechat\hooks\Metrics$SingleLineChart.class
 net\devscape\project\supremechat\chathead\sources\CrafatarSource.class
 net\devscape\project\supremechat\chathead\HeadCache$CachedHead.class
+net\devscape\project\supremechat\hooks\VaultHook.class
 net\devscape\project\supremechat\chatgames\games\WordUnscrambler$1.class
 net\devscape\project\supremechat\utils\Message.class
 net\devscape\project\supremechat\chatgames\games\TriviaGame$1.class
@@ -30,13 +32,16 @@ net\devscape\project\supremechat\hooks\FloodgateHook.class
 net\devscape\project\supremechat\commands\ChannelCommand.class
 net\devscape\project\supremechat\managers\ChannelManager.class
 net\devscape\project\supremechat\commands\EmojisCommands.class
+net\devscape\project\supremechat\commands\AdminChatCommand.class
 net\devscape\project\supremechat\listeners\Mention.class
+net\devscape\project\supremechat\commands\MsgToggleCommand.class
 net\devscape\project\supremechat\object\Channel.class
 net\devscape\project\supremechat\utils\FormatUtil.class
 net\devscape\project\supremechat\listeners\CommandSpy.class
 net\devscape\project\supremechat\chathead\SkinSourceEnum.class
 net\devscape\project\supremechat\hooks\Metrics$SimpleBarChart.class
 net\devscape\project\supremechat\listeners\Mention$1.class
+net\devscape\project\supremechat\managers\ChatDataManager.class
 net\devscape\project\supremechat\chatgames\GameManager$1.class
 net\devscape\project\supremechat\hooks\Metrics$MultiLineChart.class
 net\devscape\project\supremechat\utils\VanishCheckUtil.class
