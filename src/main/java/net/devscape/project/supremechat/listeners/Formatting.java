@@ -6,6 +6,7 @@ import net.devscape.project.supremechat.hooks.DiscordSRVHook;
 import net.devscape.project.supremechat.hooks.FloodgateHook;
 import net.devscape.project.supremechat.object.Channel;
 import net.devscape.project.supremechat.utils.FormatUtil;
+import net.devscape.project.supremechat.utils.MiniMessageFormatter;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -29,7 +30,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static net.devscape.project.supremechat.utils.FormatUtil.emojiReplacer;
+import static net.devscape.project.supremechat.utils.FormatUtil.playerTextEmojiReplacer;
 import static net.devscape.project.supremechat.utils.Message.*;
 
 public class Formatting implements Listener {
@@ -103,7 +104,9 @@ public class Formatting implements Listener {
                             if (staff.hasPermission(SupremeChat.getInstance().getConfig().getString("detect-alert-staff-permission"))) {
                                 String detect_alert = SupremeChat.getInstance().getConfig().getString("word-detect-staff");
                                 if (detect_alert != null) {
-                                    detect_alert = detect_alert.replaceAll("%message%", originalMessage);
+                                    // Plain replace(): '$' or '\' in the message would break replaceAll().
+                                    // The message is shown as plain text, never parsed as tags.
+                                    detect_alert = detect_alert.replace("%message%", escapeUntrustedInput(originalMessage));
                                     detect_alert = detect_alert.replace("%name%", player.getName());
                                     msgPlayer(staff, detect_alert);
                                 }
@@ -190,7 +193,11 @@ public class Formatting implements Listener {
                             if (!SupremeChat.getInstance().getConfig().getBoolean("disable-caps-warn")) {
                                 msgPlayer(player, SupremeChat.getInstance().getConfig().getString("caps-warn"));
                             }
-                            e.setMessage(format(e.getMessage().toLowerCase()));
+                            // In MINIMESSAGE mode the raw player message must not be formatted
+                            // here - it would parse the player's tags without checking permissions.
+                            e.setMessage(MiniMessageFormatter.isMiniMessageMode()
+                                    ? e.getMessage().toLowerCase()
+                                    : format(e.getMessage().toLowerCase()));
                             break;
                         }
                     }
@@ -208,18 +215,23 @@ public class Formatting implements Listener {
             String replacement = SupremeChat.getInstance().getConfig().getString("chat-item-replace");
             assert replacement != null;
 
+            // Item names can be set by players (anvil), so they are treated as untrusted text.
+            // The config template and the item text are formatted separately: formatting them
+            // together a second time would parse tags hidden in the item name.
+            String itemText;
             if (item.getItemMeta() != null) {
                 String displayName = item.getItemMeta().hasDisplayName() ? item.getItemMeta().getDisplayName() : item.getType().name();
-                replacement = replacement.replaceAll("%item%", format("x" + item.getAmount() + " " + displayName));
+                itemText = format("x" + item.getAmount() + " " + escapeUntrustedInput(displayName));
             } else {
-                replacement = replacement.replaceAll("%item%", format("x" + item.getAmount() + " " + item.getType().name()));
+                itemText = format("x" + item.getAmount() + " " + item.getType().name());
             }
+            replacement = format(replacement).replace("%item%", itemText);
 
             String message = e.getMessage();
 
             for (String itemString : SupremeChat.getInstance().getConfig().getStringList("chat-item-strings")) {
                 if (message.contains(itemString)) {
-                    e.setMessage(message.replace(itemString, format(replacement)));
+                    e.setMessage(message.replace(itemString, replacement));
                     break;
                 }
             }
@@ -250,27 +262,15 @@ public class Formatting implements Listener {
         // Config checks
         boolean enableChatFormat = plugin.getConfig().getBoolean("enable-chat-format");
         boolean perWorldChat = plugin.getConfig().getBoolean("per-world-chat");
-        String colorPermission = plugin.getConfig().getString("chat-color-permission", "supremechat.chat.color");
         List<String> disabledWorlds = plugin.getConfig().getStringList("disabled-worlds");
 
         if (disabledWorlds.contains(player.getWorld().getName())) return;
         if (!enableChatFormat) return;
 
         String originalMessage = e.getMessage();
-        String cleanMessage = originalMessage;
 
-        // Remove color codes if no permission
-        if (!player.hasPermission(colorPermission)) {
-            // This first line handles all legacy codes like &c and §c
-            cleanMessage = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', originalMessage));
-
-            // Now, let's strip all hex color codes supported by the plugin
-            cleanMessage = cleanMessage.replaceAll("(?i)&#[a-f0-9]{6}", "");
-            cleanMessage = cleanMessage.replaceAll("(?i)#[a-f0-9]{6}", "");
-            cleanMessage = cleanMessage.replaceAll("(?i)\\{#[a-f0-9]{6}}", "");
-            cleanMessage = cleanMessage.replaceAll("(?i)<#[a-f0-9]{6}>", "");
-            cleanMessage = cleanMessage.replaceAll("(?i)<#&[a-f0-9]{6}>", "");
-        }
+        // Remove color codes if no permission (chat-color-permission)
+        String cleanMessage = stripColorsWithoutPermission(player, originalMessage);
 
         // Get chat format
         boolean grouping = plugin.getConfig().getBoolean("group-formatting");
@@ -322,9 +322,10 @@ public class Formatting implements Listener {
             plugin.getLogger().info("=== END DEBUG ===");
         }
 
-        String formattedMessage = addChatPlaceholders(chatFormat, player)
-                .replace("%message%", cleanMessage);
-        formattedMessage = emojiReplacer(player, formattedMessage, false, true);
+        // The format gets its placeholders first, the player's text is put in last - so
+        // PlaceholderAPI placeholders typed by the player are never resolved.
+        String playerText = playerTextEmojiReplacer(player, escapePlayerInput(player, cleanMessage), false, true);
+        String formattedMessage = addChatPlaceholders(chatFormat, player).replace("%message%", playerText);
 
         // Allow other plugins like DiscordSRV to see the message
         e.setMessage(cleanMessage);
@@ -341,8 +342,8 @@ public class Formatting implements Listener {
         // Build chat component for players with ChatHead
         TextComponent msg;
 
-        // Check if ChatHead is enabled (follows resourcepack auto-send setting)
-        boolean chatHeadEnabled = plugin.getConfig().getBoolean("chathead.resourcepack.auto-send", true);
+        // Check if ChatHead is enabled (independent of resource pack delivery)
+        boolean chatHeadEnabled = plugin.getConfig().getBoolean("chathead.enabled", true);
 
         // Check if this is a Bedrock player (they can't see custom fonts)
         boolean disableForBedrock = plugin.getConfig().getBoolean("chathead.disable-for-bedrock", true);
@@ -353,8 +354,15 @@ public class Formatting implements Listener {
 
         // Only show ChatHead for Java Edition players
         if (chatHeadEnabled && !isBedrockPlayer) {
-            // Get player's head from ChatHeadAPI
-            BaseComponent[] head = ChatHeadAPI.getInstance().getHeadSmart(player);
+            // Get player's head from ChatHeadAPI.
+            // Guard against the API not being initialized (initialization failure at
+            // startup is only logged, not fatal) - fall back to a normal message.
+            BaseComponent[] head = null;
+            try {
+                head = ChatHeadAPI.getInstance().getHeadSmart(player);
+            } catch (Exception ex) {
+                head = null;
+            }
 
             if (head != null && head.length > 0) {
                 // Build message with head prepended
@@ -386,7 +394,11 @@ public class Formatting implements Listener {
         if (plugin.getConfig().getBoolean("hover.enable")) {
             ComponentBuilder hoverBuilder = new ComponentBuilder();
             for (String hoverLine : plugin.getConfig().getStringList("hover.string")) {
-                hoverBuilder.append(new TextComponent(format(addOtherPlaceholders(hoverLine, player)))).append("\n");
+                // fromLegacyText turns the codes into real component colors - raw '§x' hex codes
+                // inside plain text are not understood by the client (wrong colors).
+                // NONE: a line must not inherit bold/strikethrough etc. from the previous line.
+                hoverBuilder.append(TextComponent.fromLegacyText(format(addOtherPlaceholders(hoverLine, player))),
+                        ComponentBuilder.FormatRetention.NONE).append("\n");
             }
             msg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hoverBuilder.create()));
         }
@@ -413,7 +425,8 @@ public class Formatting implements Listener {
         e.setCancelled(true);
 
         // Manually log clean message to console
-        String consoleOutput = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', formattedMessage));
+        // deformat() = format + strip colors, so MiniMessage tags don't show up raw in the console
+        String consoleOutput = deformat(formattedMessage);
         Bukkit.getConsoleSender().sendMessage(consoleOutput);
     }
 
@@ -439,7 +452,10 @@ public class Formatting implements Listener {
         } catch (NoClassDefFoundError ignored) {
             // DiscordSRV classes not available
         }
-        String permission = SupremeChat.getInstance().getConfig().getString("chat-color-permission");
+        // Same rules as global chat: colors only with chat-color-permission, tags only with
+        // text-format.player-tags permissions. Emojis are added, placeholders are not resolved.
+        String playerText = playerTextEmojiReplacer(player,
+                escapePlayerInput(player, stripColorsWithoutPermission(player, originalMessage)), true, false);
 
         List<String> worlds = SupremeChat.getInstance().getConfig().getStringList("disabled-worlds");
 
@@ -486,42 +502,39 @@ public class Formatting implements Listener {
                         continue;
                     }
 
-                    List<String[]> hoverMessages = new ArrayList<>();
+                    List<String> hoverMessages = new ArrayList<>();
 
                     if (hover) {
                         for (String hoverMessage : SupremeChat.getInstance().getConfig().getStringList("hover.string")) {
-                            hoverMessage = addOtherPlaceholders(hoverMessage, player);
-                            TextComponent hoverComponent = new TextComponent(format(hoverMessage));
-                            hoverMessages.add(hoverComponent.toLegacyText().split("\n"));
+                            hoverMessages.add(format(addOtherPlaceholders(hoverMessage, player)));
                         }
                     }
 
                     // Step 1: Replace placeholders in the chat format
                     String formattedMessage = addChatPlaceholders(chatFormat, player);
 
-                    // Step 2: Replace %message% placeholder with the player's message
-                    formattedMessage = formattedMessage.replace("%message%", originalMessage);
-
-                    // Step 3: Replace emojis in the formatted message
-                    formattedMessage = emojiReplacer(player, formattedMessage, true, false);
-
-                    // Step 4: Apply PlaceholderAPI replacements if needed
+                    // Step 2: Apply relational PlaceholderAPI placeholders to the format
                     if (isPAPI()) {
                         formattedMessage = PlaceholderAPI.setRelationalPlaceholders(player, onlinePlayer, formattedMessage);
                     }
 
-                    // Final formatting and escaping
-                    formattedMessage = formattedMessage.replaceAll("%", "%%").replaceAll("%%[^\\w\\s%]", "");
+                    // Step 3: Put the player's message in last, so placeholders typed by the
+                    // player are never resolved
+                    formattedMessage = formattedMessage.replace("%message%", playerText);
 
                     // Create and send the chat message to the recipient
                     TextComponent msg = new TextComponent(TextComponent.fromLegacyText(format(formattedMessage)));
 
-                    // Set up hover event
+                    // Set up hover event - same way as in global chat: real component colors
+                    // (hex/gradients work) and one config line per hover line.
                     ComponentBuilder hoverBuilder = new ComponentBuilder("");
                     if (hover) {
-                        for (String[] hoverMessage : hoverMessages) {
-                            TextComponent hoverTextComponent = new TextComponent(String.join("\n", hoverMessage));
-                            hoverBuilder.append(hoverTextComponent);
+                        for (int i = 0; i < hoverMessages.size(); i++) {
+                            hoverBuilder.append(TextComponent.fromLegacyText(hoverMessages.get(i)),
+                                    ComponentBuilder.FormatRetention.NONE);
+                            if (i < hoverMessages.size() - 1) {
+                                hoverBuilder.append("\n");
+                            }
                         }
                         msg.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hoverBuilder.create()));
                     }

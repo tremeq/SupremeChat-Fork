@@ -8,7 +8,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 
 import static net.devscape.project.supremechat.utils.Message.createLog;
-import static net.devscape.project.supremechat.utils.Message.format;
+import static net.devscape.project.supremechat.utils.Message.escapeUntrustedInput;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
 
 public class CommandSpy implements Listener {
@@ -37,14 +37,18 @@ public class CommandSpy implements Listener {
                 if (alert == null) {
                     alert = "&7[CommandSpy] &e%name% &7used: &f%command%"; // Default format
                 }
-                alert = alert.replaceAll("%command%", e.getMessage());
-                alert = alert.replaceAll("%name%", player.getName());
+                // Plain replace(): replaceAll() would treat '$' or '\' in the typed command as
+                // regex syntax and throw. The command is untrusted text - never parsed as tags.
+                alert = alert.replace("%command%", escapeUntrustedInput(e.getMessage()));
+                alert = alert.replace("%name%", player.getName());
 
                 for (Player staff : Bukkit.getOnlinePlayers()) {
                     if (staff.hasPermission("supremechat.commandspy.alert")) {
                         // Don't send alert to the player who executed the command
                         if (!staff.getName().equalsIgnoreCase(player.getName())) {
-                            msgPlayer(staff, format(alert));
+                            // msgPlayer() formats the text itself - formatting it twice would
+                            // undo the escaping of the command above.
+                            msgPlayer(staff, alert);
                         }
                         // Removed break - all staff members with permission should receive alerts
                     }

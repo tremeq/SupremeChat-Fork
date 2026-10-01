@@ -8,6 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import static net.devscape.project.supremechat.utils.Message.escapeUntrustedInput;
 import static net.devscape.project.supremechat.utils.Message.getMsg;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
 
@@ -35,7 +36,7 @@ public class IgnoreCommand implements CommandExecutor {
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null || !target.isOnline()) {
             String notFound = SupremeChat.getInstance().getConfig().getString("private-messages.player-not-found", "&cPlayer &e%player% &cis not online.");
-            msgPlayer(player, notFound.replace("%player%", args[0]));
+            msgPlayer(player, notFound.replace("%player%", escapeUntrustedInput(args[0])));
             return true;
         }
 

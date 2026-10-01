@@ -19,12 +19,15 @@ import net.devscape.project.supremechat.listeners.*;
 import net.devscape.project.supremechat.managers.ChannelManager;
 import net.devscape.project.supremechat.managers.ChatDataManager;
 import net.devscape.project.supremechat.utils.FormatUtil;
+import net.devscape.project.supremechat.utils.MiniMessageFormatter;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -121,6 +124,7 @@ public final class SupremeChat extends JavaPlugin {
 
         saveDefaultConfig();
         configValidator();
+        MiniMessageFormatter.reload(this);
 
         setupVault();
 
@@ -152,8 +156,14 @@ public final class SupremeChat extends JavaPlugin {
         gameManager = new GameManager(this);
         gameManager.startScheduler();
 
-        getCommand("supremechat").setExecutor(new SCCommand());
-        getCommand("channel").setExecutor(new ChannelCommand());
+        SCCommand scCommand = new SCCommand();
+        getCommand("supremechat").setExecutor(scCommand);
+        getCommand("supremechat").setTabCompleter(scCommand);
+
+        ChannelCommand channelCommand = new ChannelCommand();
+        getCommand("channel").setExecutor(channelCommand);
+        getCommand("channel").setTabCompleter(channelCommand);
+
         getCommand("emojis").setExecutor(new EmojisCommands());
 
         // Register private message commands
@@ -177,6 +187,8 @@ public final class SupremeChat extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new Mention(), this);
         getServer().getPluginManager().registerEvents(new CommandSpy(), this);
         getServer().getPluginManager().registerEvents(new DeathMessages(), this);
+        getServer().getPluginManager().registerEvents(new AdvancementMessages(), this);
+        AdvancementMessages.applyGamerules();
 
         // Initialize DiscordSRV integration only if the plugin is available
         if (Bukkit.getPluginManager().getPlugin("DiscordSRV") != null) {
@@ -254,6 +266,8 @@ public final class SupremeChat extends JavaPlugin {
     public void reload() {
         super.reloadConfig();
         configValidator();
+        MiniMessageFormatter.reload(this);
+        AdvancementMessages.applyGamerules();
         channelManager.reloadChannels();
 
         // Reload ChatHeadAPI
@@ -399,7 +413,7 @@ public final class SupremeChat extends JavaPlugin {
 
         // Validate death messages.
         if (!config.isConfigurationSection("death")) {
-            config.set("death.enable", true);
+            config.set("death.mode", "CUSTOM");
             config.set("death.messages.contact", "&c%name% was slain!");
             config.set("death.messages.entity_attack", "&e%name% was killed by a mob.");
             config.set("death.messages.fall", "&b%name% fell from a high place.");
@@ -409,6 +423,62 @@ public final class SupremeChat extends JavaPlugin {
             config.set("death.messages.magic", "&5%name% was killed by magic.");
             config.set("death.messages.suicide", "&7%name% took their own life.");
             config.set("death.messages.unknown", "&7%name% died mysteriously.");
+            configChanged = true;
+        }
+
+        // Death message options added in v1.15.3. 'death.enable' is replaced by 'death.mode':
+        // enable: true -> CUSTOM, enable: false -> VANILLA (same behaviour as before).
+        if (!config.isSet("death.mode")) {
+            config.set("death.mode", config.getBoolean("death.enable", true) ? "CUSTOM" : "VANILLA");
+            config.set("death.enable", null);
+            getLogger().info("Config: 'death.enable' was replaced by 'death.mode' (" + config.getString("death.mode") + ")");
+            configChanged = true;
+        }
+        if (!config.isSet("death.show-to")) {
+            config.set("death.show-to", "ALL");
+            config.set("death.disabled-worlds", new ArrayList<String>());
+            config.set("death.ignore-gamerule", true);
+            setCommentsSafely(config, "death.mode", Arrays.asList(
+                    "CUSTOM  - messages from 'messages' below",
+                    "VANILLA - Minecraft's own death messages",
+                    "HIDDEN  - no death messages in chat at all"));
+            setCommentsSafely(config, "death.show-to", Arrays.asList(
+                    "Who sees a death message: ALL (whole server) or WORLD (only the world where the player died)"));
+            setCommentsSafely(config, "death.disabled-worlds", Arrays.asList(
+                    "Worlds where death messages are never shown"));
+            setCommentsSafely(config, "death.ignore-gamerule", Arrays.asList(
+                    "true = also show death messages in worlds with the gamerule showDeathMessages: false"));
+            getLogger().info("Added new death message options: show-to, disabled-worlds, ignore-gamerule");
+            configChanged = true;
+        }
+        if (!config.isSet("death.messages.default")) {
+            config.set("death.messages.default", DeathMessages.DEFAULT_MESSAGE);
+            setCommentsSafely(config, "death.messages.default", Arrays.asList(
+                    "Used for every cause of death without its own message. %vanilla% = Minecraft's message"));
+            configChanged = true;
+        }
+
+        // Advancement messages (added in v1.15.3) - VANILLA keeps the old behaviour
+        if (!config.isSet("advancements.mode")) {
+            config.set("advancements.mode", "VANILLA");
+            config.set("advancements.show-to", "ALL");
+            config.set("advancements.disabled-worlds", new ArrayList<String>());
+            config.set("advancements.message", AdvancementMessages.DEFAULT_MESSAGE);
+            setCommentsSafely(config, "advancements", Arrays.asList(
+                    "==================================================",
+                    "ADVANCEMENT MESSAGES (\"Steve has made the advancement [Stone Age]\")",
+                    "=================================================="));
+            setCommentsSafely(config, "advancements.mode", Arrays.asList(
+                    "VANILLA - Minecraft's own messages",
+                    "HIDDEN  - no advancement messages in chat",
+                    "CUSTOM  - the 'message' below"));
+            setCommentsSafely(config, "advancements.show-to", Arrays.asList(
+                    "CUSTOM mode: who sees the message - ALL or WORLD"));
+            setCommentsSafely(config, "advancements.disabled-worlds", Arrays.asList(
+                    "Worlds where advancement messages are never shown (any mode)"));
+            setCommentsSafely(config, "advancements.message", Arrays.asList(
+                    "CUSTOM mode. Placeholders: %name%, %advancement%, %world% + PlaceholderAPI"));
+            getLogger().info("Added new config section: advancements (mode: VANILLA)");
             configChanged = true;
         }
 
@@ -497,10 +567,64 @@ public final class SupremeChat extends JavaPlugin {
             configChanged = true;
         }
 
+        // Validate text format / MiniMessage configuration (added in v1.15.3)
+        if (!config.isSet("text-format.mode")) {
+            setDefaultTextFormat(config);
+            getLogger().info("Added new config section: text-format (mode: LEGACY - nothing changes until you set it to MINIMESSAGE)");
+            configChanged = true;
+        }
+
         // Save config only once if any changes were made
         if (configChanged) {
             plugin.saveConfig();
             getLogger().info("Config updated with new options. Your custom settings have been preserved.");
+        }
+    }
+
+    // Config comments need Spigot 1.18.1+, older servers just skip them
+    private static void setCommentsSafely(FileConfiguration config, String path, List<String> comments) {
+        try {
+            config.setComments(path, comments);
+        } catch (NoSuchMethodError ignored) {
+            // Server older than 1.18.1 - the value is saved without a comment
+        }
+    }
+
+    // Method to set the default text-format (MiniMessage) section for configs from older versions
+    private void setDefaultTextFormat(FileConfiguration config) {
+        config.set("text-format.mode", "LEGACY");
+        config.set("text-format.convert-legacy-codes", true);
+        config.set("text-format.player-tags.enabled", true);
+        for (MiniMessageFormatter.TagGroup group : MiniMessageFormatter.TagGroup.values()) {
+            String path = "text-format.player-tags.groups." + group.getKey();
+            config.set(path + ".enabled", group.isEnabledByDefault());
+            config.set(path + ".permission", group.getDefaultPermission());
+        }
+
+        // Short explanations. Config comments need Spigot 1.18.1+, older servers just skip them.
+        try {
+            config.setComments("text-format", Arrays.asList(
+                    "==================================================",
+                    "TEXT FORMAT (LEGACY / MINIMESSAGE)",
+                    "How every text of this config is formatted (chat formats, messages, join/leave,",
+                    "private messages, hover lines, custom commands...).",
+                    "  LEGACY      - classic codes: &c, &l, &#RRGGBB, {#RRGGBB}, <#RRGGBB> and simple tags like <red>",
+                    "  MINIMESSAGE - MiniMessage tags: <red>text</red>, <b>, <gradient:#ff0000:#0000ff>text</gradient>, <rainbow>",
+                    "                Guide: https://docs.advntr.dev/minimessage/format.html",
+                    "<hover> and <click> tags are not supported inside texts - use the 'hover' / 'click' sections.",
+                    "=================================================="));
+            config.setComments("text-format.mode", Collections.singletonList("LEGACY or MINIMESSAGE"));
+            config.setComments("text-format.convert-legacy-codes", Arrays.asList(
+                    "[MINIMESSAGE only] true = &-codes, &#RRGGBB and {#RRGGBB} keep working and can be mixed with tags.",
+                    "'§' codes (e.g. prefixes from other plugins) are always converted."));
+            config.setComments("text-format.player-tags", Arrays.asList(
+                    "[MINIMESSAGE only] Tags players may use in THEIR OWN messages (chat, channels, /msg, /reply, /ac).",
+                    "A tag the player is not allowed to use is shown as plain text.",
+                    "  enabled    - false = nobody can use this group",
+                    "  permission - needed to use the group, 'None' = everyone",
+                    "Always blocked for players: hover, click, insert, font, key, lang, selector, score, nbt, shadow."));
+        } catch (NoSuchMethodError ignored) {
+            // Server older than 1.18.1 - values are still saved, just without comments.
         }
     }
 

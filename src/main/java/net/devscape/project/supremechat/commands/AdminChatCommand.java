@@ -8,6 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import static net.devscape.project.supremechat.utils.Message.escapePlayerInput;
 import static net.devscape.project.supremechat.utils.Message.format;
 import static net.devscape.project.supremechat.utils.Message.getMsg;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
@@ -46,7 +47,7 @@ public class AdminChatCommand implements CommandExecutor {
 
         String formatted = plugin.getConfig().getString("admin-chat.format", "&c&l[AdminChat] &f%name% &8➟ &c%message%")
                 .replace("%name%", senderName)
-                .replace("%message%", message);
+                .replace("%message%", escapePlayerInput(sender, message));
 
         // Deliver to every online holder of the permission.
         for (Player online : Bukkit.getOnlinePlayers()) {

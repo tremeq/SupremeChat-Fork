@@ -5,17 +5,25 @@ import net.devscape.project.supremechat.object.Channel;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static net.devscape.project.supremechat.utils.Message.getMsg;
 import static net.devscape.project.supremechat.utils.Message.getMsgList;
 import static net.devscape.project.supremechat.utils.Message.msgPlayer;
 
-public class ChannelCommand implements CommandExecutor {
+public class ChannelCommand implements CommandExecutor, TabCompleter {
+
+    // First-argument sub-commands offered by /channel.
+    private static final List<String> SUBCOMMANDS =
+            Arrays.asList("join", "leave", "list", "help");
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
@@ -95,7 +103,50 @@ public class ChannelCommand implements CommandExecutor {
                 }
             }
         }
-        return false;
+        return true;
+    }
+
+    @Override
+    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command cmd,
+                                                @NotNull String label, @NotNull String[] args) {
+        if (!(sender instanceof Player)) {
+            return Collections.emptyList();
+        }
+        Player player = (Player) sender;
+
+        // Respect the master switch and the command's permission gate.
+        if (!SupremeChat.getInstance().getConfig().getBoolean("channels-enabled", true)) {
+            return Collections.emptyList();
+        }
+        if (!player.hasPermission("supremechat.channel") && !player.isOp()) {
+            return Collections.emptyList();
+        }
+
+        if (args.length == 1) {
+            String prefix = args[0].toLowerCase();
+            List<String> suggestions = new ArrayList<>();
+            for (String sub : SUBCOMMANDS) {
+                if (sub.startsWith(prefix)) {
+                    suggestions.add(sub);
+                }
+            }
+            return suggestions;
+        }
+
+        // "/channel join <TAB>" -> suggest channels the player is actually allowed to join.
+        if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
+            String prefix = args[1].toLowerCase();
+            List<String> suggestions = new ArrayList<>();
+            for (Channel c : SupremeChat.getInstance().getChannelManager().channels) {
+                boolean allowed = c.getPermission().equalsIgnoreCase("None") || player.hasPermission(c.getPermission());
+                if (allowed && c.getName().toLowerCase().startsWith(prefix)) {
+                    suggestions.add(c.getName());
+                }
+            }
+            return suggestions;
+        }
+
+        return Collections.emptyList();
     }
 
     public void whatChannel(Player player) {

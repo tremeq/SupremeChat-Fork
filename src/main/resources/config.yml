@@ -1,7 +1,7 @@
 # ==================================================
 # SUPREMECHAT PLUGIN
 # If you're in need of support or have encounted any errors please join the discord server:
-# https://discord.gg/AnPwty8asP
+# https://discord.gg/Tpwd6V8DBf
 #
 # - PlaceholderAPI Support
 # - Vault Support
@@ -131,6 +131,96 @@ messages:
     - '&#fdc269Author: &#fff2ccDevScape'
     - '&#fdc269Plugin Version: &#fff2cc%version%'
     - '&#fdc269ScapeHelp Server: &#fff2cchttps://discord.gg/AnPwty8asP'
+
+# ==================================================
+# TEXT FORMAT (LEGACY / MINIMESSAGE)
+#
+# Decides how EVERY text of this config is formatted: chat formats, groups, channels,
+# private messages, join/leave, hover lines, plugin messages, custom commands, etc.
+#
+#   LEGACY      - classic color codes (default):
+#                   &a  &l  &#RRGGBB  {#RRGGBB}  <#RRGGBB>  #RRGGBB
+#                   and simple tags like <red>, <bold>, <italic>
+#
+#   MINIMESSAGE - modern MiniMessage format:
+#                   <red>text</red>   <b>bold</b>   <i>italic</i>   <#ff0000>hex
+#                   <gradient:#ff0000:#0000ff>text</gradient>   <rainbow>text</rainbow>
+#                   <transition:#ff0000:#0000ff:0.5>   <newline>   <reset>
+#                 Format guide:   https://docs.advntr.dev/minimessage/format.html
+#                 Online preview: https://webui.advntr.dev
+#
+# Good to know in MINIMESSAGE mode:
+#  - <hover> and <click> tags do NOT work inside texts (they are removed).
+#    Use the 'hover' and 'click' sections of this config instead.
+#  - <font>, <shadow> and <insert> have no effect either.
+#  - Placeholders from other plugins (PlaceholderAPI, Vault/LuckPerms prefixes) are
+#    trusted and formatted like the rest of the text.
+#  - If a text can't be parsed (e.g. a broken tag), it is sent with LEGACY formatting
+#    instead and a warning is printed in the console.
+# ==================================================
+text-format:
+  # LEGACY or MINIMESSAGE
+  mode: LEGACY
+
+  # [MINIMESSAGE mode only]
+  # true  = legacy codes keep working and can be mixed with tags:
+  #         &c, &l, &#RRGGBB, {#RRGGBB}, #RRGGBB, &x&R&R&G&G&B&B
+  #         Just like in LEGACY mode, a color code also turns off bold/italic/etc. before it.
+  # false = only MiniMessage tags are formatted, &-codes are shown as normal text.
+  # Codes with '§' (e.g. prefixes coming from other plugins) are ALWAYS converted.
+  convert-legacy-codes: true
+
+  # [MINIMESSAGE mode only]
+  # Which MiniMessage tags players may use in THEIR OWN messages
+  # (global chat, channels, /msg, /tell, /reply, /ac).
+  # A tag the player is not allowed to use is shown as plain text, e.g. "<rainbow>".
+  #
+  #   enabled    - false = nobody can use this group
+  #   permission - permission needed to use the group, 'None' = everyone can use it
+  #
+  # Always blocked for players (can't be enabled): <hover>, <click>, <insert>, <font>,
+  # <key>, <lang>, <selector>, <score>, <nbt>, <shadow>.
+  # Legacy &-codes in player messages are still controlled by 'chat-color-permission'.
+  player-tags:
+    # master switch - false = players can never use any tag
+    enabled: true
+    groups:
+      # <red>, <#ff0000>, <color:#ff0000>
+      color:
+        enabled: true
+        permission: 'supremechat.tags.color'
+      # <bold>/<b>, <italic>/<i>, <underlined>/<u>, <strikethrough>/<st>
+      decoration:
+        enabled: true
+        permission: 'supremechat.tags.decoration'
+      # <obfuscated>/<obf> - scrambled "magic" text, often used for spam
+      obfuscated:
+        enabled: true
+        permission: 'supremechat.tags.obfuscated'
+      # <gradient:#ff0000:#0000ff>text</gradient>
+      gradient:
+        enabled: true
+        permission: 'supremechat.tags.gradient'
+      # <rainbow>text</rainbow>
+      rainbow:
+        enabled: true
+        permission: 'supremechat.tags.rainbow'
+      # <transition:#ff0000:#0000ff:0.5>text</transition>
+      transition:
+        enabled: true
+        permission: 'supremechat.tags.transition'
+      # <pride>text</pride>, <pride:trans>text</pride>
+      pride:
+        enabled: true
+        permission: 'supremechat.tags.pride'
+      # <reset> - clears ALL formatting, can break the look of your chat format
+      reset:
+        enabled: false
+        permission: 'supremechat.tags.reset'
+      # <newline>/<br> - line breaks, can be abused to fake messages from other players
+      newline:
+        enabled: false
+        permission: 'supremechat.tags.newline'
 
 # ==================================================
 # CHAT FORMATTING:
@@ -446,18 +536,91 @@ command-warn-enabled: true
 # ==================================================
 
 death:
-  # set false to disable custom death messages.
-  enable: true
-  # edit custom death messages.
+  # CUSTOM  - messages from 'messages' below (default)
+  # VANILLA - Minecraft's own death messages (the options below still apply)
+  # HIDDEN  - no death messages in chat at all
+  mode: CUSTOM
+
+  # Who sees a death message:
+  #   ALL   - every player on the server
+  #   WORLD - only players in the world where the player died
+  show-to: ALL
+
+  # Worlds where death messages are never shown (works in every mode)
+  disabled-worlds:
+    - 'example_world'
+
+  # true  = death messages are also shown in worlds where the gamerule
+  #         'showDeathMessages' is false (e.g. worlds created by Multiverse)
+  # false = respect the gamerule, like vanilla Minecraft does
+  ignore-gamerule: true
+
+  # Placeholders:
+  #   %name%    - the player who died
+  #   %killer%  - the player who killed him (entity_player)
+  #   %mob%     - the mob that killed him: its name tag, otherwise the type (e.g. "zombie")
+  #   %world%   - world where the player died
+  #   %vanilla% - Minecraft's own message, e.g. "Steve was slain by Zombie using [Sword]"
+  #   + PlaceholderAPI placeholders
+  #
+  # The message is picked in this order:
+  #   1. entity_player - if another player killed him
+  #   2. the cause of death (keys below, full list of causes:
+  #      https://hub.spigotmc.org/javadocs/spigot/org/bukkit/event/entity/EntityDamageEvent.DamageCause.html
+  #      written in lowercase, e.g. BLOCK_EXPLOSION -> block_explosion)
+  #   3. default - every other cause
   messages:
-    contact: "&c&lDEATH! &7%name% was slain!"
-    entity_attack: "&c&lDEATH! &7%name% was killed by a %mob%"
+    default: "&c&lDEATH! &7%vanilla%"
     entity_player: "&c&lDEATH! &f%name% &7was killed by &c%killer%"
+    entity_attack: "&c&lDEATH! &7%name% was killed by a %mob%"
+    entity_sweep_attack: "&c&lDEATH! &7%name% was killed by a %mob%"
+    projectile: "&c&lDEATH! &7%name% was shot by a %mob%"
+    entity_explosion: "&c&lDEATH! &7%name% was blown up by a %mob%"
+    block_explosion: "&c&lDEATH! &7%name% blew up."
+    contact: "&c&lDEATH! &7%name% was pricked to death."
     fall: "&c&lDEATH! &7%name% fell from a high place."
-    drowning: "&c&lDEATH! &7%name% drowned."
+    void: "&c&lDEATH! &7%name% fell out of the world."
+    lava: "&c&lDEATH! &7%name% tried to swim in lava."
     fire: "&c&lDEATH! &7%name% burned to death."
-    projectile: "&c&lDEATH! &7%name% was shot."
+    fire_tick: "&c&lDEATH! &7%name% burned to death."
+    hot_floor: "&c&lDEATH! &7%name% discovered the floor was lava."
+    drowning: "&c&lDEATH! &7%name% drowned."
+    suffocation: "&c&lDEATH! &7%name% suffocated in a wall."
+    starvation: "&c&lDEATH! &7%name% starved to death."
+    lightning: "&c&lDEATH! &7%name% was struck by lightning."
+    freeze: "&c&lDEATH! &7%name% froze to death."
+    magic: "&c&lDEATH! &7%name% was killed by magic."
+    poison: "&c&lDEATH! &7%name% was poisoned."
+    wither: "&c&lDEATH! &7%name% withered away."
+    falling_block: "&c&lDEATH! &7%name% was squashed by a falling block."
+    fly_into_wall: "&c&lDEATH! &7%name% experienced kinetic energy."
+    kill: "&c&lDEATH! &7%name% was killed."
+    suicide: "&c&lDEATH! &7%name% took their own life."
     unknown: "&c&lDEATH! &7%name% died mysteriously."
+
+# ==================================================
+# ADVANCEMENT MESSAGES ("Steve has made the advancement [Stone Age]")
+# ==================================================
+advancements:
+  # VANILLA - Minecraft's own messages (default)
+  # HIDDEN  - no advancement messages in chat at all
+  # CUSTOM  - your own 'message' below
+  #
+  # On Spigot (not Paper) hiding works through the gamerule 'announceAdvancements':
+  # the plugin sets it to false and sets it back to true when you switch to VANILLA again.
+  mode: VANILLA
+
+  # CUSTOM mode: who sees the message - ALL (whole server) or WORLD (same world only)
+  show-to: ALL
+
+  # Worlds where advancement messages are never shown (works in every mode)
+  disabled-worlds:
+    - 'example_world'
+
+  # CUSTOM mode message. Only advancements Minecraft itself would announce are shown
+  # (no recipes, no hidden advancements).
+  # Placeholders: %name%, %advancement% (its title), %world% + PlaceholderAPI
+  message: "&a%name% &7has made the advancement &e[%advancement%]"
 
 # ==================================================
 # COMMAND-SPY

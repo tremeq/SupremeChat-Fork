@@ -25,10 +25,17 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
 - **Anti Bot Preventions** - Protects against bot spam attacks
 - **Mute Chat** - Global chat muting for maintenance or events
 - **✨ NEW: Clear Chat** - `/clearchat` wipes the chat for everyone (configurable, with bypass permission)
+- **✨ NEW: MiniMessage Support** - Modern text formatting, switchable in the config
+  - Choose `LEGACY` (classic `&` codes) or `MINIMESSAGE` with one option - `text-format.mode`
+  - Gradients, rainbow, closing tags and more: `<gradient:#ff0000:#0000ff>text</gradient>`, `<rainbow>`, `<b>`...
+  - Old `&` codes and `&#RRGGBB` keep working and can be mixed with tags
+  - Built in - works on Spigot and Paper without any extra plugin
+  - **Secure by default:** players can use tags in their own messages only with permission (`supremechat.tags.*`), configurable per tag group
 - **Advanced Chat Formatting (Hover & Click)**
   - Extended Click System (suggest_command, run_command, open_url)
   - Click to execute commands, pre-fill chat, or open URLs
   - Full PlaceholderAPI support in click actions
+  - **✨ NEW:** hex colors and gradients now display correctly in hover text
 - **ChatHead Integration** - 8x8 Player heads in chat
   - **Works out of the box** - Zero configuration needed!
   - Automatic resource pack distribution
@@ -36,6 +43,7 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
   - **Bedrock Edition detection** - Auto-disables heads for Bedrock players
   - Smart caching and multiple skin sources
   - Embedded ChatHeadFont API with enhancements
+  - **✨ NEW:** works with resource pack plugins like Nexo - heads stay in chat when another plugin sends the pack
 - **Private Messages System** (/msg, /tell, /whisper, /reply)
   - Complete takeover of PM commands with advanced formatting
   - Full hover & click event support in private messages
@@ -54,6 +62,7 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
   - **✨ NEW:** all channel command messages are now configurable
 - **Join/Leave/MOTD Actions** - Customizable join/leave messages with titles
 - **Custom Commands** - Create custom chat commands
+  - **✨ NEW:** commands can be used with arguments and have an optional permission
 - **Mentioning** - @player mentions with sound notifications
   - **✨ NEW:** working @everyone mention with its own permission
 - **Advanced Chat Filters**
@@ -61,7 +70,21 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
   - Spam prevention
   - Repeat message detection
   - Caps filter with auto-lowercase
-- **Custom Death Messages** - Personalized death messages
+- **✨ NEW: Chat Security**
+  - Players can't use PlaceholderAPI placeholders in their own messages
+  - Colors in channels and private messages require the chat color permission, just like in global chat
+  - MiniMessage tags in player messages only with permission - hover, click & co. are always blocked
+- **Death Messages** - Personalized death messages
+  - **✨ NEW:** `CUSTOM` / `VANILLA` / `HIDDEN` modes - turn death messages off completely with one option
+  - **✨ NEW:** show them to the whole server or only to players in the same world
+  - **✨ NEW:** disable them in selected worlds
+  - **✨ NEW:** works in every world - also in worlds with the gamerule `showDeathMessages: false`
+  - **✨ NEW:** messages for 26 causes of death + a `default` message with the original Minecraft text (`%vanilla%`)
+  - **✨ NEW:** `%mob%` shows the real killer (also the shooter of an arrow), new `%world%` placeholder + PlaceholderAPI
+- **✨ NEW: Advancement Messages** - Control "Player has made the advancement..." in chat
+  - `VANILLA` / `HIDDEN` / `CUSTOM` modes - hide them or use your own message
+  - Show custom messages to the whole server or only the same world
+  - Disable them in selected worlds
 - **Chat Games System** - Interactive mini-games in chat
   - Math challenges
   - Trivia questions
@@ -93,12 +116,43 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
 - **✨ NEW:** `/msgtoggle` - Toggle receiving private messages (available to everyone)
 - **✨ NEW:** `/ignore <player>` - Ignore or unignore a player (available to everyone)
 - **✨ NEW:** `/ac <message>` - Admin/staff chat
+- **✨ NEW:** Tab completion for `/schat` and `/channels` subcommands (incl. channel names you can join)
 
 ---
 
 ## 🔧 Recent Updates & Bug Fixes
 
-### v1.15.2 (Latest)
+### v1.15.3 (Latest)
+
+**New Features:**
+- ✅ **MiniMessage support** - switch `text-format.mode` between `LEGACY` and `MINIMESSAGE` (gradients, rainbow, closing tags...)
+- ✅ Per-group permissions for MiniMessage tags in player messages (`supremechat.tags.*`)
+- ✅ Death messages: `CUSTOM` / `VANILLA` / `HIDDEN` modes, `show-to` (whole server or same world), per-world disable
+- ✅ Death messages for 26 causes + `default` fallback with the original Minecraft message (`%vanilla%`)
+- ✅ Advancement messages: `VANILLA` / `HIDDEN` / `CUSTOM` modes with per-world disable
+- ✅ Tab completion for `/schat` and `/channels`
+- ✅ Custom commands can be used with arguments and have an optional permission
+
+**Security:**
+- ✅ Players can no longer use PlaceholderAPI placeholders in their own messages (chat, channels, private messages)
+- ✅ Colors in channels and private messages now require `chat-color-permission`, like in global chat
+- ✅ Players without the color permission can no longer color chat with tags like `<red>`
+
+**Bug Fixes:**
+- ✅ ChatHeads no longer disappear when the resource pack is sent by another plugin (e.g. Nexo) with `auto-send: false`
+- ✅ Fixed custom commands - they never worked before
+- ✅ Fixed `{#RRGGBB}` causing an error, `<#RRGGBB>` leaving `<>` in the text and `<#&RRGGBB>` not working
+- ✅ Fixed hex colors in hover text and channel hover lines being merged into one line
+- ✅ Fixed `%` being doubled in channel messages
+- ✅ Fixed `%mob%` in death messages always showing "player"
+- ✅ Fixed death messages missing in worlds with `showDeathMessages: false` and a hardcoded text for many causes of death
+- ✅ Fixed command spy and banned-word alerts breaking on messages with `$` or `\`
+- ✅ `/ac` no longer shows up in tab completion for players without permission
+
+**Improvements:**
+- ✅ New options are added to your existing config automatically (with comments) - nothing to copy, old behaviour stays the same
+
+### v1.15.2
 
 **New Features:**
 - ✅ `/clearchat` - clear the chat for everyone (configurable + bypass permission)
@@ -159,7 +213,7 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
 
 ### Core Features
 - **[🔑 Permissions List](PERMISSIONS.md)** - Every permission with a short description
-- **[🔄 Config Auto-Update](CONFIG_AUTO_UPDATE.md)** - How config updates work without losing your settings
+- **[🔄 Config Auto-Update](docs/CONFIG_AUTO_UPDATE.md)** - How config updates work without losing your settings
 - **[Private Messages Guide](docs/PRIVATE_MESSAGES_GUIDE.md)** - Complete PM system documentation
 - **[Extended Click System](docs/CLICK_SYSTEM_EXAMPLES.md)** - Click action examples and configuration
 
@@ -186,3 +240,4 @@ SupremeChat is designed to incorporate dedicated type chat systems into one syst
 - **DiscordSRV** - Send chat messages to Discord channels (Optional)
 - **Floodgate** - Auto-disables ChatHeads for Bedrock Edition players (Optional)
 - **Vanish Plugins** - Hide vanished players from PM and mentions
+- **Resource Pack Plugins (e.g. Nexo)** - ChatHeads keep working when another plugin sends the resource pack - set `chathead.resourcepack.auto-send: false` and add the ChatHead pack to it

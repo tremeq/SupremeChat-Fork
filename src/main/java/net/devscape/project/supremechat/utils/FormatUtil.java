@@ -47,7 +47,30 @@ public class FormatUtil {
         }
     }
 
+    /**
+     * Replaces emoticons with emojis and then resolves PlaceholderAPI placeholders in the whole
+     * text. Only for texts from the config - never for text typed by a player.
+     */
     public static String emojiReplacer(Player player, String message, boolean isInChannel, boolean isNormalChat) {
+        message = replaceEmojis(player, message, isInChannel, isNormalChat, false);
+
+        // Apply PlaceholderAPI replacements
+        message = replacePlaceholders(player, message);
+
+        return message;
+    }
+
+    /**
+     * Emoji replacement for text typed by a player (chat, channels). Placeholders are resolved
+     * only inside the emoji from the config, never in the player's own text - otherwise players
+     * could use any PlaceholderAPI placeholder just by typing it (e.g. %player_health%).
+     */
+    public static String playerTextEmojiReplacer(Player player, String message, boolean isInChannel, boolean isNormalChat) {
+        return replaceEmojis(player, message, isInChannel, isNormalChat, true);
+    }
+
+    private static String replaceEmojis(Player player, String message, boolean isInChannel, boolean isNormalChat,
+                                        boolean resolveEmojiPlaceholders) {
         FileConfiguration config = SupremeChat.getInstance().getConfig();
 
         // Check if the "emojis" section exists in the config
@@ -74,15 +97,15 @@ public class FormatUtil {
                     if (emoticon != null && emoji != null) {
                         // Replace all occurrences of the emoticon in the message with the emoji
                         if (message.contains(emoticon)) {
+                            if (resolveEmojiPlaceholders) {
+                                emoji = replacePlaceholders(player, emoji);
+                            }
                             message = message.replace(emoticon, emoji);
                         }
                     }
                 }
             }
         }
-
-        // Apply PlaceholderAPI replacements
-        message = replacePlaceholders(player, message);
 
         return message;
     }

@@ -1,5 +1,5 @@
 name: SupremeChat-Fork
-version: '1.15.2'
+version: '1.15.3'
 main: net.devscape.project.supremechat.SupremeChat
 api-version: 1.13
 authors: [DevScape, TremeQu]
@@ -46,8 +46,15 @@ commands:
     description: 'Send a message to admin/staff chat.'
     usage: '/ac <message>'
     aliases: [ac]
+    permission: 'supremechat.adminchat'
 
 permissions:
+  supremechat.admin:
+    description: 'Access to /supremechat admin sub-commands (reload, clearchat, mutechat, discordsrv)'
+    default: op
+  supremechat.channel:
+    description: 'Access to the /channel command'
+    default: op
   supremechat.bypass.chatcooldown:
     description: 'Bypass chat cooldown restrictions'
     default: op
@@ -83,4 +90,45 @@ permissions:
     default: op
   supremechat.adminchat:
     description: 'Send and receive admin/staff chat via /ac'
+    default: op
+  # MiniMessage tags players may use in their own messages (text-format.player-tags)
+  supremechat.tags.*:
+    description: 'Use every MiniMessage tag group that is enabled in text-format.player-tags'
+    default: op
+    children:
+      supremechat.tags.color: true
+      supremechat.tags.decoration: true
+      supremechat.tags.obfuscated: true
+      supremechat.tags.gradient: true
+      supremechat.tags.rainbow: true
+      supremechat.tags.transition: true
+      supremechat.tags.pride: true
+      supremechat.tags.reset: true
+      supremechat.tags.newline: true
+  supremechat.tags.color:
+    description: 'Use color tags in your messages: <red>, <#ff0000>, <color:...>'
+    default: op
+  supremechat.tags.decoration:
+    description: 'Use <bold>, <italic>, <underlined>, <strikethrough> in your messages'
+    default: op
+  supremechat.tags.obfuscated:
+    description: 'Use <obfuscated> in your messages'
+    default: op
+  supremechat.tags.gradient:
+    description: 'Use <gradient> in your messages'
+    default: op
+  supremechat.tags.rainbow:
+    description: 'Use <rainbow> in your messages'
+    default: op
+  supremechat.tags.transition:
+    description: 'Use <transition> in your messages'
+    default: op
+  supremechat.tags.pride:
+    description: 'Use <pride> in your messages'
+    default: op
+  supremechat.tags.reset:
+    description: 'Use <reset> in your messages (group is disabled by default in config)'
+    default: op
+  supremechat.tags.newline:
+    description: 'Use <newline>/<br> in your messages (group is disabled by default in config)'
     default: op

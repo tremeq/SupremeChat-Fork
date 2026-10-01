@@ -38,55 +38,46 @@ public class Message {
         return (prefix != null) ? prefix : PREFIX;
     }
 
+    // Group 1 of every hex pattern is the 6 digit hex code.
     private static Pattern p1 = Pattern.compile("\\{#([0-9A-Fa-f]{6})\\}");
-    private static Pattern p2 = Pattern.compile("&#([A-Fa-f0-9]){6}");
-    private static Pattern p3 = Pattern.compile("#([A-Fa-f0-9]){6}");
-    private static Pattern p4 = Pattern.compile("<#([A-Fa-f0-9])>{6}");
-    private static Pattern p5 = Pattern.compile("<#&([A-Fa-f0-9])>{6}");
+    private static Pattern p2 = Pattern.compile("&#([A-Fa-f0-9]{6})");
+    private static Pattern p3 = Pattern.compile("#([A-Fa-f0-9]{6})");
+    private static Pattern p4 = Pattern.compile("<#([A-Fa-f0-9]{6})>");
+    private static Pattern p5 = Pattern.compile("<#&([A-Fa-f0-9]{6})>");
 
     private static final String LOGS_FOLDER = "logs";
     private static final String COMMANDS_FOLDER = "commands";
     private static final String CHAT_FOLDER = "chat";
 
     public static String format(String message) {
+        // text-format.mode: MINIMESSAGE. Falls back to LEGACY only if the text can't be parsed,
+        // so a message is never lost because of a broken tag.
+        if (MiniMessageFormatter.isMiniMessageMode()) {
+            String formatted = MiniMessageFormatter.toLegacy(message);
+            if (formatted != null) {
+                return formatted;
+            }
+        }
 
         if (isVersionLessThan("1.16")) {
             message = ChatColor.translateAlternateColorCodes('&', message);
             return message;
         } else {
-            message = ChatColor.translateAlternateColorCodes('&', message);
-
             Matcher match = p1.matcher(message);
             while (match.find()) {
                 getRGB(message);
             }
 
-            Matcher hexMatcher = p1.matcher(message);
-            while (hexMatcher.find()) {
-                message = message.replace(hexMatcher.group(), ChatColor.of(hexMatcher.group().substring(1)).toString());
-            }
+            // Hex colors are replaced BEFORE '&' codes, otherwise the '&' translation would
+            // break '<#&RRGGBB>'. The bracket/prefix forms also have to run before the bare
+            // '#RRGGBB' form, or their brackets would be left behind in the text.
+            message = replaceHex(p1, message);
+            message = replaceHex(p5, message);
+            message = replaceHex(p4, message);
+            message = replaceHex(p2, message);
+            message = replaceHex(p3, message);
 
-            hexMatcher = p2.matcher(message);
-            while (hexMatcher.find()) {
-                message = message.replace(hexMatcher.group(), ChatColor.of(hexMatcher.group().substring(1)).toString());
-            }
-
-            hexMatcher = p3.matcher(message);
-            while (hexMatcher.find()) {
-                message = message.replace(hexMatcher.group(), ChatColor.of(hexMatcher.group()).toString());
-            }
-
-            hexMatcher = p4.matcher(message);
-            while (hexMatcher.find()) {
-                String hexColor = hexMatcher.group().substring(2, 8);
-                message = message.replace(hexMatcher.group(), ChatColor.of(hexColor).toString());
-            }
-
-            hexMatcher = p5.matcher(message);
-            while (hexMatcher.find()) {
-                String hexColor = hexMatcher.group().substring(3, 9);
-                message = message.replace(hexMatcher.group(), ChatColor.of(hexColor).toString());
-            }
+            message = ChatColor.translateAlternateColorCodes('&', message);
 
             message = message.replace("<black>", "§0")
                     .replace("<dark_blue>", "§1")
@@ -113,6 +104,71 @@ public class Message {
 
             return message;
         }
+    }
+
+    private static String replaceHex(Pattern pattern, String message) {
+        Matcher hexMatcher = pattern.matcher(message);
+        if (!hexMatcher.find()) {
+            return message;
+        }
+        StringBuffer result = new StringBuffer();
+        do {
+            String color = ChatColor.of("#" + hexMatcher.group(1)).toString();
+            hexMatcher.appendReplacement(result, Matcher.quoteReplacement(color));
+        } while (hexMatcher.find());
+        hexMatcher.appendTail(result);
+        return result.toString();
+    }
+
+    /**
+     * Removes color codes from text typed by a player who does not have 'chat-color-permission'
+     * (global chat, channels and private messages). Players with the permission keep them.
+     */
+    public static String stripColorsWithoutPermission(Player player, String message) {
+        String colorPermission = SupremeChat.getInstance().getConfig().getString("chat-color-permission", "supremechat.chat.color");
+        if (message == null || player.hasPermission(colorPermission)) {
+            return message;
+        }
+
+        // Hex forms that contain '&' go first - translating '&' codes before would break them
+        // (e.g. "<#&0000ff>" -> "<#000ff>" left in the text). Bracket/prefix forms also have to
+        // go before the bare '#RRGGBB', or their brackets would be left behind ("{}" or "<>").
+        String cleanMessage = message.replaceAll("(?i)&#[a-f0-9]{6}", "");
+        cleanMessage = cleanMessage.replaceAll("(?i)\\{#[a-f0-9]{6}}", "");
+        cleanMessage = cleanMessage.replaceAll("(?i)<#&[a-f0-9]{6}>", "");
+
+        // All legacy codes like &c and §c
+        cleanMessage = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', cleanMessage));
+
+        if (MiniMessageFormatter.isMiniMessageMode()) {
+            // <#RRGGBB>, </#RRGGBB>, <color:#..> and <gradient:#..:#..> are MiniMessage tags,
+            // those are allowed or blocked by text-format.player-tags - so keep them here.
+            cleanMessage = cleanMessage.replaceAll("(?i)(?<![</:])#[a-f0-9]{6}", "");
+        } else {
+            cleanMessage = cleanMessage.replaceAll("(?i)<#[a-f0-9]{6}>", "");
+            cleanMessage = cleanMessage.replaceAll("(?i)#[a-f0-9]{6}", "");
+            // LEGACY mode also turns simple tags like <red> or <bold> into colors, so
+            // they need the same permission as '&' codes.
+            cleanMessage = cleanMessage.replaceAll("(?i)<(black|dark_blue|dark_green|dark_aqua|dark_red|dark_purple|gold|gray|dark_gray|blue|green|aqua|red|light_purple|yellow|white|obfuscated|bold|strikethrough|underlined|italic|reset)>", "");
+        }
+        return cleanMessage;
+    }
+
+    /**
+     * Prepares text typed by a player (chat, channels, private messages, admin chat) before it
+     * is put into a format. In MINIMESSAGE mode every tag the player may not use is escaped and
+     * shown as plain text (see text-format.player-tags). Does nothing in LEGACY mode.
+     */
+    public static String escapePlayerInput(CommandSender sender, String text) {
+        return MiniMessageFormatter.escapePlayerText(sender, text);
+    }
+
+    /**
+     * Prepares untrusted text (typed player names, commands shown by command spy, item names)
+     * that must never be formatted as MiniMessage tags. Does nothing in LEGACY mode.
+     */
+    public static String escapeUntrustedInput(String text) {
+        return MiniMessageFormatter.escapeUntrustedText(text);
     }
 
     public static boolean isValidVersion(String version) {

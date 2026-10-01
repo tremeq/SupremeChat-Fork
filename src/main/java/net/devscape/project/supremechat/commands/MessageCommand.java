@@ -46,7 +46,7 @@ public class MessageCommand implements CommandExecutor {
         // Check if target exists
         if (target == null || !target.isOnline()) {
             String notFoundMsg = SupremeChat.getInstance().getConfig().getString("private-messages.player-not-found", "&cPlayer not found.");
-            notFoundMsg = notFoundMsg.replace("%player%", args[0]);
+            notFoundMsg = notFoundMsg.replace("%player%", escapeUntrustedInput(args[0]));
             msgPlayer(senderPlayer, notFoundMsg);
             return true;
         }
@@ -55,7 +55,7 @@ public class MessageCommand implements CommandExecutor {
         if (SupremeChat.getInstance().getConfig().getBoolean("vanish-support", false)) {
             if (isVanished(target) && !senderPlayer.hasPermission("supremechat.see.vanished")) {
                 String notFoundMsg = SupremeChat.getInstance().getConfig().getString("private-messages.player-not-found", "&cPlayer not found.");
-                notFoundMsg = notFoundMsg.replace("%player%", args[0]);
+                notFoundMsg = notFoundMsg.replace("%player%", escapeUntrustedInput(args[0]));
                 msgPlayer(senderPlayer, notFoundMsg);
                 return true;
             }
@@ -102,9 +102,13 @@ public class MessageCommand implements CommandExecutor {
     /**
      * Sends a formatted private message between two players
      */
-    private void sendPrivateMessage(Player sender, Player receiver, String message) {
+    private void sendPrivateMessage(Player sender, Player receiver, String rawMessage) {
         SupremeChat plugin = SupremeChat.getInstance();
         boolean debugMode = plugin.getConfig().getBoolean("debug-mode", false);
+
+        // Same rules as global chat: colors only with chat-color-permission, tags the sender
+        // may not use are shown as plain text (text-format.player-tags)
+        String message = escapePlayerInput(sender, stripColorsWithoutPermission(sender, rawMessage));
 
         // Get formats
         String senderFormat = plugin.getConfig().getString("private-messages.format.sender", "&d[You -> %receiver_name%] &f%message%");
@@ -149,13 +153,15 @@ public class MessageCommand implements CommandExecutor {
         result = result.replace("%sender_displayname%", sender.getDisplayName());
         result = result.replace("%receiver_name%", receiver.getName());
         result = result.replace("%receiver_displayname%", receiver.getDisplayName());
-        result = result.replace("%message%", message);
 
         // PlaceholderAPI support
         if (isPAPI()) {
             result = PlaceholderAPI.setPlaceholders(sender, result);
             result = PlaceholderAPI.setRelationalPlaceholders(sender, receiver, result);
         }
+
+        // The message goes in last, so placeholders typed by the player are never resolved
+        result = result.replace("%message%", message);
 
         return result;
     }
@@ -183,7 +189,9 @@ public class MessageCommand implements CommandExecutor {
                     processedLine = PlaceholderAPI.setPlaceholders(targetForHover, processedLine);
                 }
 
-                hoverBuilder.append(new TextComponent(format(processedLine))).append("\n");
+                // fromLegacyText = real component colors, so hex/gradient colors show correctly
+                hoverBuilder.append(TextComponent.fromLegacyText(format(processedLine)),
+                        ComponentBuilder.FormatRetention.NONE).append("\n");
             }
             component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hoverBuilder.create()));
         }
